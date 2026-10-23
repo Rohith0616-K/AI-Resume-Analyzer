@@ -1,4 +1,3 @@
-
 import io
 import os
 import re
@@ -6,11 +5,9 @@ import shutil
 
 import streamlit as st
 import pytesseract
-
 from PIL import Image
 from pypdf import PdfReader
 from docx import Document
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -22,103 +19,425 @@ from sklearn.metrics.pairwise import cosine_similarity
 st.set_page_config(
     page_title="AI Resume Analyzer",
     page_icon="📄",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
 # =========================================================
-# OCR CONFIGURATION
+# TESSERACT CONFIGURATION
 # =========================================================
 
-# Try to find Tesseract automatically
 TESSERACT_PATH = shutil.which("tesseract")
 
-# Standard Windows installation path
 if not TESSERACT_PATH:
-
     possible_paths = [
         r"C:\Program Files\Tesseract-OCR\tesseract.exe",
         r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
     ]
 
     for path in possible_paths:
-
         if os.path.exists(path):
             TESSERACT_PATH = path
             break
 
-
-# Configure Tesseract
 if TESSERACT_PATH:
-
-    pytesseract.pytesseract.tesseract_cmd = (
-        TESSERACT_PATH
-    )
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 # =========================================================
 # POPPLER CONFIGURATION
 # =========================================================
 
-# Your Windows Poppler installation
 WINDOWS_POPPLER_PATH = (
-    r"C:\Users\rohit\Downloads"
+    r"C:\Users\rohith\Downloads"
     r"\Release-26.09.0-0"
     r"\poppler-26.09.0"
     r"\Library\bin"
 )
 
 if os.path.exists(WINDOWS_POPPLER_PATH):
-
     POPPLER_PATH = WINDOWS_POPPLER_PATH
-
 else:
-
-    # Streamlit Cloud / Linux
     POPPLER_PATH = None
 
 
 # =========================================================
-# CUSTOM CSS
+# UI STYLE
 # =========================================================
 
 st.markdown(
     """
     <style>
 
-    .main-title {
-        font-size: 44px;
-        font-weight: 800;
-        margin-bottom: 5px;
+    /* ================================
+       MAIN APP
+       ================================ */
+
+    .stApp {
+        background:
+            linear-gradient(
+                rgba(4, 8, 20, 0.90),
+                rgba(4, 10, 25, 0.96)
+            ),
+            url("https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=2400&q=85");
+
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+
+        color: #f8fafc;
     }
 
-    .subtitle {
-        font-size: 18px;
-        color: #777;
-        margin-bottom: 25px;
+
+    .block-container {
+        max-width: 1450px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+
+    /* ================================
+       SIDEBAR
+       ================================ */
+
+    [data-testid="stSidebar"] {
+        background:
+            linear-gradient(
+                180deg,
+                #070b18 0%,
+                #0a1020 50%,
+                #070c17 100%
+            );
+
+        border-right: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        color: white;
+    }
+
+
+    /* ================================
+       TITLE
+       ================================ */
+
+    .app-title {
+        color: white;
+        font-size: clamp(2.2rem, 4vw, 3.4rem);
+        font-weight: 900;
+        line-height: 1.15;
+        letter-spacing: -1.5px;
+        margin: 0;
+        padding: 0;
+    }
+
+    .app-subtitle {
+        color: #9fb0c9;
+        font-size: 1rem;
+        margin-top: 0.4rem;
+        margin-bottom: 1.2rem;
+    }
+
+
+    /* ================================
+       HERO
+       ================================ */
+
+    .hero-box {
+        background:
+            linear-gradient(
+                135deg,
+                rgba(49, 46, 129, 0.94),
+                rgba(12, 74, 110, 0.91)
+            );
+
+        border: 1px solid rgba(129, 140, 248, 0.38);
+        border-radius: 20px;
+        padding: 1.7rem;
+        min-height: 185px;
+
+        box-shadow:
+            0 18px 45px rgba(0, 0, 0, 0.28),
+            inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .hero-label {
+        color: #c7d2fe;
+        font-size: 0.72rem;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        margin-bottom: 0.7rem;
+    }
+
+    .hero-heading {
+        color: white;
+        font-size: 1.8rem;
+        font-weight: 900;
+        margin-bottom: 0.6rem;
+    }
+
+    .hero-text {
+        color: #dbeafe;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+
+    /* ================================
+       UPLOAD CARD
+       ================================ */
+
+    .upload-card {
+        background: rgba(9, 17, 33, 0.86);
+        border: 1px solid rgba(129, 140, 248, 0.25);
+        border-radius: 18px;
+        padding: 1.2rem;
+        min-height: 185px;
+    }
+
+    .upload-title {
+        color: white;
+        font-size: 1.3rem;
+        font-weight: 850;
+    }
+
+    .upload-subtitle {
+        color: #94a3b8;
+        margin-top: 0.25rem;
+        margin-bottom: 0.8rem;
+    }
+
+
+    /* ================================
+       SECTION TITLES
+       ================================ */
+
+    .section-title {
+        color: white;
+        font-size: 1.45rem;
+        font-weight: 900;
+        margin-top: 1.3rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .section-subtitle {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 0.8rem;
+    }
+
+
+    /* ================================
+       CARDS
+       ================================ */
+
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(8, 16, 31, 0.78);
+        border-color: rgba(148, 163, 184, 0.15) !important;
+        border-radius: 16px !important;
+    }
+
+
+    /* ================================
+       METRICS
+       ================================ */
+
+    [data-testid="stMetric"] {
+        background:
+            linear-gradient(
+                145deg,
+                rgba(11, 20, 38, 0.96),
+                rgba(20, 31, 55, 0.90)
+            );
+
+        border: 1px solid rgba(129, 140, 248, 0.22);
+        border-radius: 15px;
+        padding: 0.8rem;
+        min-height: 90px;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #94a3b8 !important;
+        font-size: 0.7rem !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: white !important;
+        font-size: 1.45rem !important;
+        font-weight: 900 !important;
+    }
+
+
+    /* ================================
+       SKILL BOXES
+       ================================ */
+
+    .skill-box {
+        background:
+            linear-gradient(
+                135deg,
+                rgba(15, 23, 42, 0.96),
+                rgba(20, 30, 55, 0.90)
+            );
+
+        border: 1px solid rgba(99, 102, 241, 0.30);
+        border-radius: 12px;
+
+        padding: 0.65rem 0.8rem;
+
+        margin-bottom: 0.45rem;
+
+        color: #e2e8f0;
+        font-weight: 700;
+
+        transition: all 0.2s ease;
+    }
+
+    .skill-box:hover {
+        border-color: rgba(129, 140, 248, 0.75);
+        transform: translateY(-2px);
+    }
+
+    .skill-dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        margin-right: 8px;
+        background: #60a5fa;
+    }
+
+
+    /* ================================
+       ROLE SKILL BOX
+       ================================ */
+
+    .role-skill-box {
+        background: rgba(15, 23, 42, 0.88);
+        border-radius: 12px;
+        padding: 0.65rem 0.8rem;
+        margin-bottom: 0.45rem;
+        font-weight: 700;
+    }
+
+    .role-skill-match {
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        color: #86efac;
+    }
+
+    .role-skill-missing {
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        color: #fca5a5;
+    }
+
+
+    /* ================================
+       NAVIGATION TABS
+       ================================ */
+
+    [data-testid="stTabs"] {
+        margin-top: 1.3rem;
+    }
+
+    [data-testid="stTabs"] button {
+        color: #cbd5e1 !important;
+        font-weight: 800;
+        font-size: 0.92rem;
+    }
+
+    [data-testid="stTabs"] button[aria-selected="true"] {
+        color: white !important;
+    }
+
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+        background: #6366f1 !important;
+    }
+
+
+    /* ================================
+       INPUTS
+       ================================ */
+
+    [data-baseweb="select"] > div {
+        background-color: #0e1728 !important;
+        border-color: rgba(148, 163, 184, 0.20) !important;
+    }
+
+    textarea,
+    input {
+        background-color: #0e1728 !important;
+        color: white !important;
+    }
+
+
+    /* ================================
+       BUTTONS
+       ================================ */
+
+    .stButton > button,
+    .stDownloadButton > button {
+        border-radius: 11px;
+
+        background:
+            linear-gradient(
+                135deg,
+                #4f46e5,
+                #2563eb
+            );
+
+        color: white;
+        border: 1px solid rgba(129, 140, 248, 0.35);
+
+        font-weight: 800;
+    }
+
+
+    /* ================================
+       FILE UPLOADER
+       ================================ */
+
+    [data-testid="stFileUploader"] {
+        background: rgba(8, 16, 31, 0.82);
+        border: 1px dashed rgba(129, 140, 248, 0.48);
+        border-radius: 15px;
+        padding: 0.5rem;
+    }
+
+
+    /* ================================
+       ALERTS
+       ================================ */
+
+    [data-testid="stAlert"] {
+        border-radius: 12px;
+    }
+
+
+    /* ================================
+       MOBILE
+       ================================ */
+
+    @media (max-width: 800px) {
+
+        .block-container {
+            padding-top: 1rem;
+        }
+
+        .app-title {
+            font-size: 2.2rem;
+        }
+
+        .hero-box {
+            min-height: auto;
+        }
+
     }
 
     </style>
     """,
-    unsafe_allow_html=True
-)
-
-
-# =========================================================
-# TITLE
-# =========================================================
-
-st.markdown(
-    '<div class="main-title">📄 AI Resume Analyzer</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">'
-    'Analyze your resume, identify skills, match job '
-    'requirements and receive personalized improvement '
-    'suggestions.'
-    '</div>',
     unsafe_allow_html=True
 )
 
@@ -336,7 +655,7 @@ SECTION_DEFINITIONS = {
 
 
 # =========================================================
-# CHECK TESSERACT
+# TESSERACT CHECK
 # =========================================================
 
 def check_tesseract():
@@ -356,12 +675,11 @@ def check_tesseract():
 
 
 # =========================================================
-# CHECK POPPLER
+# POPPLER CHECK
 # =========================================================
 
 def check_poppler():
 
-    # Windows
     if POPPLER_PATH:
 
         pdfinfo = os.path.join(
@@ -376,17 +694,14 @@ def check_poppler():
 
         if (
             os.path.exists(pdfinfo)
-            and
-            os.path.exists(pdftoppm)
+            and os.path.exists(pdftoppm)
         ):
 
             return True
 
-    # Linux / Streamlit Cloud
     if (
         shutil.which("pdfinfo")
-        and
-        shutil.which("pdftoppm")
+        and shutil.which("pdftoppm")
     ):
 
         return True
@@ -411,9 +726,7 @@ def ocr_image(image):
 
     try:
 
-        return pytesseract.image_to_string(
-            image
-        )
+        return pytesseract.image_to_string(image)
 
     except Exception as error:
 
@@ -429,10 +742,6 @@ def ocr_image(image):
 
 def extract_pdf(file):
 
-    # -----------------------------------------------------
-    # FIRST TRY NORMAL PDF TEXT EXTRACTION
-    # -----------------------------------------------------
-
     file.seek(0)
 
     reader = PdfReader(file)
@@ -446,28 +755,15 @@ def extract_pdf(file):
             page_text = page.extract_text()
 
             if page_text:
-
-                text_parts.append(
-                    page_text
-                )
+                text_parts.append(page_text)
 
         except Exception:
-
             pass
 
-    text = "\n".join(
-        text_parts
-    ).strip()
+    text = "\n".join(text_parts).strip()
 
-    # If enough text was extracted,
-    # this is a normal text-based PDF.
     if len(text) >= 80:
-
         return text
-
-    # -----------------------------------------------------
-    # SCANNED PDF
-    # -----------------------------------------------------
 
     st.info(
         "🔍 Scanned PDF detected. Running OCR..."
@@ -497,7 +793,6 @@ def extract_pdf(file):
 
         pdf_bytes = file.read()
 
-        # Windows
         if POPPLER_PATH:
 
             images = convert_from_bytes(
@@ -506,7 +801,6 @@ def extract_pdf(file):
                 poppler_path=POPPLER_PATH
             )
 
-        # Linux / Streamlit Cloud
         else:
 
             images = convert_from_bytes(
@@ -529,13 +823,9 @@ def extract_pdf(file):
 
     for index, image in enumerate(images):
 
-        extracted_text = ocr_image(
-            image
-        )
+        extracted_text = ocr_image(image)
 
-        results.append(
-            extracted_text
-        )
+        results.append(extracted_text)
 
         progress.progress(
             (index + 1) / total_pages
@@ -556,7 +846,6 @@ def extract_docx(file):
 
     parts = []
 
-    # Normal paragraphs
     for paragraph in document.paragraphs:
 
         if paragraph.text.strip():
@@ -565,7 +854,6 @@ def extract_docx(file):
                 paragraph.text
             )
 
-    # Tables
     for table in document.tables:
 
         for row in table.rows:
@@ -586,7 +874,6 @@ def extract_docx(file):
                     " ".join(row_text)
                 )
 
-    # Images inside DOCX
     for relationship in document.part.rels.values():
 
         if "image" in relationship.reltype:
@@ -601,15 +888,11 @@ def extract_docx(file):
                     io.BytesIO(image_data)
                 )
 
-                extracted = ocr_image(
-                    image
-                )
+                extracted = ocr_image(image)
 
                 if extracted.strip():
 
-                    parts.append(
-                        extracted
-                    )
+                    parts.append(extracted)
 
             except Exception:
 
@@ -628,13 +911,9 @@ def extract_image(file):
 
     if image.mode != "RGB":
 
-        image = image.convert(
-            "RGB"
-        )
+        image = image.convert("RGB")
 
-    return ocr_image(
-        image
-    )
+    return ocr_image(image)
 
 
 # =========================================================
@@ -677,9 +956,7 @@ def find_skills(text):
             text
         ):
 
-            found.append(
-                skill
-            )
+            found.append(skill)
 
     return found
 
@@ -688,10 +965,7 @@ def find_skills(text):
 # SECTION DETECTION
 # =========================================================
 
-def section_present(
-    text,
-    names
-):
+def section_present(text, names):
 
     text = text.lower()
 
@@ -740,17 +1014,13 @@ def analyze_resume(
     selected_role
 ):
 
-    skills = find_skills(
-        text
-    )
+    skills = find_skills(text)
 
     word_count = len(
         text.split()
     )
 
-    sections = analyze_sections(
-        text
-    )
+    sections = analyze_sections(text)
 
     strengths = []
 
@@ -758,9 +1028,8 @@ def analyze_resume(
 
     recommendations = []
 
-    # -----------------------------------------------------
+
     # WORD COUNT
-    # -----------------------------------------------------
 
     if 250 <= word_count <= 900:
 
@@ -790,13 +1059,10 @@ def analyze_resume(
             "on relevant achievements."
         )
 
-    # -----------------------------------------------------
-    # CONTACT
-    # -----------------------------------------------------
 
-    if sections[
-        "Contact Information"
-    ]:
+    # CONTACT
+
+    if sections["Contact Information"]:
 
         strengths.append(
             "Contact information detected."
@@ -814,13 +1080,10 @@ def analyze_resume(
             "professional LinkedIn/GitHub links."
         )
 
-    # -----------------------------------------------------
-    # EDUCATION
-    # -----------------------------------------------------
 
-    if sections[
-        "Education"
-    ]:
+    # EDUCATION
+
+    if sections["Education"]:
 
         strengths.append(
             "Education section detected."
@@ -836,13 +1099,10 @@ def analyze_resume(
             "Add a clearly labelled Education section."
         )
 
-    # -----------------------------------------------------
-    # PROJECTS
-    # -----------------------------------------------------
 
-    if sections[
-        "Projects"
-    ]:
+    # PROJECTS
+
+    if sections["Projects"]:
 
         strengths.append(
             "Projects section detected."
@@ -859,13 +1119,10 @@ def analyze_resume(
             "mention technologies used."
         )
 
-    # -----------------------------------------------------
-    # EXPERIENCE
-    # -----------------------------------------------------
 
-    if sections[
-        "Experience"
-    ]:
+    # EXPERIENCE
+
+    if sections["Experience"]:
 
         strengths.append(
             "Experience or internship section detected."
@@ -878,13 +1135,10 @@ def analyze_resume(
             "or relevant work experience if available."
         )
 
-    # -----------------------------------------------------
-    # SKILLS
-    # -----------------------------------------------------
 
-    if sections[
-        "Skills"
-    ]:
+    # SKILLS
+
+    if sections["Skills"]:
 
         strengths.append(
             "Technical Skills section detected."
@@ -900,13 +1154,10 @@ def analyze_resume(
             "Create a dedicated Technical Skills section."
         )
 
-    # -----------------------------------------------------
-    # CERTIFICATIONS
-    # -----------------------------------------------------
 
-    if sections[
-        "Certifications"
-    ]:
+    # CERTIFICATIONS
+
+    if sections["Certifications"]:
 
         strengths.append(
             "Certifications section detected."
@@ -918,13 +1169,10 @@ def analyze_resume(
             "Add relevant certifications if you have them."
         )
 
-    # -----------------------------------------------------
-    # SUMMARY
-    # -----------------------------------------------------
 
-    if sections[
-        "Professional Summary"
-    ]:
+    # SUMMARY
+
+    if sections["Professional Summary"]:
 
         strengths.append(
             "Professional summary/profile detected."
@@ -937,9 +1185,8 @@ def analyze_resume(
             "tailored to the target role."
         )
 
-    # -----------------------------------------------------
+
     # SKILL COUNT
-    # -----------------------------------------------------
 
     if len(skills) >= 8:
 
@@ -965,9 +1212,8 @@ def analyze_resume(
             "you genuinely know."
         )
 
-    # -----------------------------------------------------
+
     # ROLE MATCH
-    # -----------------------------------------------------
 
     target_skills = ROLE_SKILLS[
         selected_role
@@ -981,15 +1227,11 @@ def analyze_resume(
 
         if skill in skills:
 
-            matching_skills.append(
-                skill
-            )
+            matching_skills.append(skill)
 
         else:
 
-            missing_skills.append(
-                skill
-            )
+            missing_skills.append(skill)
 
     role_percentage = round(
         (
@@ -998,6 +1240,7 @@ def analyze_resume(
         ) * 100,
         1
     )
+
 
     if role_percentage >= 75:
 
@@ -1030,33 +1273,26 @@ def analyze_resume(
             f"{selected_role}."
         )
 
+
     return {
 
         "skills": skills,
 
-        "matching_skills":
-            matching_skills,
+        "matching_skills": matching_skills,
 
-        "missing_skills":
-            missing_skills,
+        "missing_skills": missing_skills,
 
-        "role_percentage":
-            role_percentage,
+        "role_percentage": role_percentage,
 
-        "word_count":
-            word_count,
+        "word_count": word_count,
 
-        "sections":
-            sections,
+        "sections": sections,
 
-        "strengths":
-            strengths,
+        "strengths": strengths,
 
-        "weaknesses":
-            weaknesses,
+        "weaknesses": weaknesses,
 
-        "recommendations":
-            recommendations
+        "recommendations": recommendations
     }
 
 
@@ -1084,7 +1320,7 @@ def calculate_ats_score(
         "sections"
     ]
 
-    # Length
+
     if 250 <= word_count <= 900:
 
         score += 15
@@ -1097,49 +1333,49 @@ def calculate_ats_score(
 
         score += 5
 
-    # Contact
+
     if sections[
         "Contact Information"
     ]:
 
         score += 10
 
-    # Education
+
     if sections[
         "Education"
     ]:
 
         score += 10
 
-    # Experience
+
     if sections[
         "Experience"
     ]:
 
         score += 15
 
-    # Projects
+
     if sections[
         "Projects"
     ]:
 
         score += 15
 
-    # Skills
+
     if sections[
         "Skills"
     ]:
 
         score += 15
 
-    # Summary
+
     if sections[
         "Professional Summary"
     ]:
 
         score += 5
 
-    # Role match
+
     score += round(
         analysis[
             "role_percentage"
@@ -1169,10 +1405,12 @@ def analyze_job_description(
         job_description
     )
 
+
     vectorizer = TfidfVectorizer(
         stop_words="english",
         ngram_range=(1, 2)
     )
+
 
     matrix = vectorizer.fit_transform(
         [
@@ -1181,27 +1419,27 @@ def analyze_job_description(
         ]
     )
 
+
     similarity = cosine_similarity(
         matrix[0:1],
         matrix[1:2]
     )[0][0]
+
 
     text_match = round(
         similarity * 100,
         1
     )
 
+
     resume_skills = set(
-        find_skills(
-            resume_clean
-        )
+        find_skills(resume_clean)
     )
 
     jd_skills = set(
-        find_skills(
-            jd_clean
-        )
+        find_skills(jd_clean)
     )
+
 
     matching_skills = sorted(
         resume_skills.intersection(
@@ -1209,19 +1447,20 @@ def analyze_job_description(
         )
     )
 
+
     missing_skills = sorted(
         jd_skills.difference(
             resume_skills
         )
     )
 
+
     if jd_skills:
 
         skill_match = round(
             (
                 len(matching_skills)
-                /
-                len(jd_skills)
+                / len(jd_skills)
             ) * 100,
             1
         )
@@ -1230,13 +1469,16 @@ def analyze_job_description(
 
         skill_match = 0
 
+
     feature_names = (
-        vectorizer.get_feature_names_out()
+        vectorizer
+        .get_feature_names_out()
     )
 
     jd_vector = matrix[
         1
     ].toarray()[0]
+
 
     keyword_scores = list(
         zip(
@@ -1245,10 +1487,12 @@ def analyze_job_description(
         )
     )
 
+
     keyword_scores.sort(
         key=lambda x: x[1],
         reverse=True
     )
+
 
     important_keywords = []
 
@@ -1270,6 +1514,7 @@ def analyze_job_description(
 
             break
 
+
     if jd_skills:
 
         final_match = round(
@@ -1285,33 +1530,29 @@ def analyze_job_description(
 
         final_match = text_match
 
+
     return {
 
-        "text_match":
-            text_match,
+        "text_match": text_match,
 
-        "skill_match":
-            skill_match,
+        "skill_match": skill_match,
 
-        "final_match":
-            final_match,
+        "final_match": final_match,
 
-        "job_skills":
-            sorted(jd_skills),
+        "job_skills": sorted(
+            jd_skills
+        ),
 
-        "matching_skills":
-            matching_skills,
+        "matching_skills": matching_skills,
 
-        "missing_skills":
-            missing_skills,
+        "missing_skills": missing_skills,
 
-        "important_keywords":
-            important_keywords
+        "important_keywords": important_keywords
     }
 
 
 # =========================================================
-# AI IMPROVEMENT SUGGESTIONS
+# IMPROVEMENT SUGGESTIONS
 # =========================================================
 
 def generate_ai_suggestions(
@@ -1331,16 +1572,16 @@ def generate_ai_suggestions(
         "sections"
     ]
 
-    # Role skills
+
     for skill in missing_role_skills[:5]:
 
         suggestions.append(
-            f"Consider adding **{skill.title()}** "
+            f"Consider adding {skill.title()} "
             f"to your resume if you genuinely "
             f"have experience with it."
         )
 
-    # Job description
+
     if jd_analysis:
 
         missing_jd_skills = jd_analysis[
@@ -1350,6 +1591,7 @@ def generate_ai_suggestions(
         matching_jd_skills = jd_analysis[
             "matching_skills"
         ]
+
 
         if missing_jd_skills:
 
@@ -1364,10 +1606,11 @@ def generate_ai_suggestions(
 
                 suggestions.append(
                     f"If you have experience with "
-                    f"**{skill.title()}**, mention it "
+                    f"{skill.title()}, mention it "
                     f"explicitly in your Skills or "
                     f"Projects section."
                 )
+
 
         if matching_jd_skills:
 
@@ -1378,7 +1621,7 @@ def generate_ai_suggestions(
                 "projects, internships or achievements."
             )
 
-    # Projects
+
     if not sections["Projects"]:
 
         suggestions.append(
@@ -1395,7 +1638,7 @@ def generate_ai_suggestions(
             "used and measurable results."
         )
 
-    # Experience
+
     if not sections["Experience"]:
 
         suggestions.append(
@@ -1412,23 +1655,23 @@ def generate_ai_suggestions(
             "results where possible."
         )
 
-    # Summary
+
     if not sections["Professional Summary"]:
 
         suggestions.append(
             f"Add a 2–3 line professional summary "
-            f"focused on **{selected_role}**."
+            f"focused on {selected_role}."
         )
 
     else:
 
         suggestions.append(
             f"Tailor your professional summary toward "
-            f"**{selected_role}** and highlight your "
+            f"{selected_role} and highlight your "
             f"strongest relevant skills."
         )
 
-    # Skills
+
     if len(analysis["skills"]) < 5:
 
         suggestions.append(
@@ -1445,7 +1688,7 @@ def generate_ai_suggestions(
             "Tools, Databases, AI/ML or Security."
         )
 
-    # Keywords
+
     if jd_analysis:
 
         keywords = jd_analysis[
@@ -1463,27 +1706,28 @@ def generate_ai_suggestions(
 
             suggestions.append(
                 "Important terms detected in the job "
-                f"description include: **{keyword_string}**. "
+                f"description include: {keyword_string}. "
                 "Use matching terminology naturally "
                 "where it truthfully describes your "
                 "experience."
             )
 
-    # General
+
     suggestions.append(
         "Use strong action verbs such as "
-        "**developed, implemented, analyzed, "
-        "designed, automated and optimized** "
+        "developed, implemented, analyzed, "
+        "designed, automated and optimized "
         "when they accurately describe your work."
     )
+
 
     suggestions.append(
         f"Keep the resume concise and prioritize "
         f"information directly relevant to "
-        f"**{selected_role}**."
+        f"{selected_role}."
     )
 
-    # Remove duplicates
+
     unique_suggestions = []
 
     for suggestion in suggestions:
@@ -1546,6 +1790,9 @@ def create_report(
 
     report.append("")
 
+
+    # DETECTED SKILLS
+
     report.append(
         "DETECTED SKILLS"
     )
@@ -1562,6 +1809,9 @@ def create_report(
 
     report.append("")
 
+
+    # ROLE MATCHING
+
     report.append(
         "ROLE MATCHING SKILLS"
     )
@@ -1570,13 +1820,18 @@ def create_report(
         "-" * 30
     )
 
-    for skill in analysis["matching_skills"]:
+    for skill in analysis[
+        "matching_skills"
+    ]:
 
         report.append(
             f"- {skill.title()}"
         )
 
     report.append("")
+
+
+    # MISSING ROLE SKILLS
 
     report.append(
         "MISSING ROLE SKILLS"
@@ -1586,13 +1841,18 @@ def create_report(
         "-" * 30
     )
 
-    for skill in analysis["missing_skills"]:
+    for skill in analysis[
+        "missing_skills"
+    ]:
 
         report.append(
             f"- {skill.title()}"
         )
 
     report.append("")
+
+
+    # STRENGTHS
 
     report.append(
         "STRENGTHS"
@@ -1602,13 +1862,18 @@ def create_report(
         "-" * 30
     )
 
-    for item in analysis["strengths"]:
+    for item in analysis[
+        "strengths"
+    ]:
 
         report.append(
             f"- {item}"
         )
 
     report.append("")
+
+
+    # AREAS TO IMPROVE
 
     report.append(
         "AREAS TO IMPROVE"
@@ -1618,13 +1883,40 @@ def create_report(
         "-" * 30
     )
 
-    for item in analysis["weaknesses"]:
+    for item in analysis[
+        "weaknesses"
+    ]:
 
         report.append(
             f"- {item}"
         )
 
+
+    if ai_suggestions:
+
+        for suggestion in ai_suggestions:
+
+            clean_suggestion = (
+                suggestion.replace(
+                    "**",
+                    ""
+                )
+            )
+
+            if (
+                clean_suggestion
+                not in analysis["weaknesses"]
+            ):
+
+                report.append(
+                    f"- {clean_suggestion}"
+                )
+
+
     report.append("")
+
+
+    # RECOMMENDATIONS
 
     report.append(
         "RECOMMENDATIONS"
@@ -1634,13 +1926,17 @@ def create_report(
         "-" * 30
     )
 
-    for item in analysis["recommendations"]:
+    for item in analysis[
+        "recommendations"
+    ]:
 
         report.append(
             f"- {item}"
         )
 
-    # Job description
+
+    # JOB DESCRIPTION
+
     if jd_analysis:
 
         report.append("")
@@ -1710,33 +2006,8 @@ def create_report(
                 f"- {keyword.title()}"
             )
 
-    # AI suggestions
-    if ai_suggestions:
 
-        report.append("")
-
-        report.append(
-            "AI RESUME IMPROVEMENT SUGGESTIONS"
-        )
-
-        report.append(
-            "-" * 30
-        )
-
-        for suggestion in ai_suggestions:
-
-            clean_suggestion = suggestion.replace(
-                "**",
-                ""
-            )
-
-            report.append(
-                f"- {clean_suggestion}"
-            )
-
-    return "\n".join(
-        report
-    )
+    return "\n".join(report)
 
 
 # =========================================================
@@ -1745,256 +2016,545 @@ def create_report(
 
 with st.sidebar:
 
-    st.header(
-        "⚙️ Resume Settings"
+    st.markdown(
+        "## ⚙️ Resume Settings"
     )
+
+    st.caption(
+        "Personalize your analysis"
+    )
+
 
     selected_role = st.selectbox(
-        "Target Job Role",
-        list(
-            ROLE_SKILLS.keys()
-        )
+        "TARGET JOB ROLE",
+        list(ROLE_SKILLS.keys())
     )
 
-    st.divider()
 
-    st.write(
-        "### 🧠 AI / ML Technologies"
+    st.markdown(
+        "### 🎯 Analysis Profile"
     )
-
-    st.write(
-        "• Natural Language Processing"
-    )
-
-    st.write(
-        "• TF-IDF"
-    )
-
-    st.write(
-        "• Cosine Similarity"
-    )
-
-    st.write(
-        "• OCR"
-    )
-
-    st.write(
-        "• Keyword Extraction"
-    )
-
-    st.divider()
 
     st.info(
-        "No training dataset is required."
+        f"Your resume will be evaluated "
+        f"for **{selected_role}**."
+    )
+
+
+    st.markdown(
+        "### 📁 Supported Files"
+    )
+
+    st.write("📄 PDF")
+
+    st.write("📝 DOCX")
+
+    st.write("🖼️ JPG / JPEG / PNG")
+
+
+    st.divider()
+
+
+    st.caption(
+        "💡 For best results, use a text-based "
+        "PDF or DOCX."
     )
 
 
 # =========================================================
-# FILE UPLOAD
+# HEADER
 # =========================================================
 
-uploaded_file = st.file_uploader(
-    "📤 Upload your Resume",
-    type=[
-        "pdf",
-        "docx",
-        "jpg",
-        "jpeg",
-        "png"
-    ]
+st.markdown(
+    '<div class="app-title">📄 AI Resume Analyzer</div>',
+    unsafe_allow_html=True
 )
+
+st.markdown(
+    '<div class="app-subtitle">'
+    'Analyze your resume, identify skills, match '
+    'job requirements and discover areas to improve.'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
+# HERO + UPLOAD
+# =========================================================
+
+hero_col, upload_col = st.columns(
+    [1.35, 0.85],
+    gap="large"
+)
+
+
+with hero_col:
+
+    with st.container(
+        border=True
+    ):
+
+        st.markdown(
+            "### ✨ Analyze. Match. Improve."
+        )
+
+        st.markdown(
+            """
+            Turn your resume into a stronger application
+            with instant ATS insights, role-based skill
+            analysis, job-description matching and
+            practical improvement suggestions.
+            """
+        )
+
+        st.caption(
+            "AI-powered resume intelligence"
+        )
+
+
+with upload_col:
+
+    with st.container(
+        border=True
+    ):
+
+        st.markdown(
+            "### 📤 Upload Your Resume"
+        )
+
+        st.caption(
+            "PDF, DOCX, JPG, JPEG or PNG"
+        )
+
+        uploaded_file = st.file_uploader(
+            "Choose your resume",
+            type=[
+                "pdf",
+                "docx",
+                "jpg",
+                "jpeg",
+                "png"
+            ],
+            help=(
+                "Supported formats: PDF, DOCX, "
+                "JPG, JPEG and PNG"
+            )
+        )
+
+
+# =========================================================
+# HOME SCREEN
+# =========================================================
+
+if not uploaded_file:
+
+    st.markdown(
+        '<div class="section-title">'
+        '🚀 Get Started in 3 Simple Steps'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-subtitle">'
+        'Upload your resume and let the analyzer '
+        'handle the rest.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+    step1, step2, step3 = st.columns(
+        3,
+        gap="medium"
+    )
+
+
+    with step1:
+
+        with st.container(
+            border=True
+        ):
+
+            st.markdown(
+                "### 01"
+            )
+
+            st.markdown(
+                "#### 📤 Upload Resume"
+            )
+
+            st.caption(
+                "Upload your PDF, DOCX, JPG, "
+                "JPEG or PNG resume."
+            )
+
+
+    with step2:
+
+        with st.container(
+            border=True
+        ):
+
+            st.markdown(
+                "### 02"
+            )
+
+            st.markdown(
+                "#### 🔍 Analyze"
+            )
+
+            st.caption(
+                "Extract text, detect skills, "
+                "evaluate ATS compatibility "
+                "and analyze your target role."
+            )
+
+
+    with step3:
+
+        with st.container(
+            border=True
+        ):
+
+            st.markdown(
+                "### 03"
+            )
+
+            st.markdown(
+                "#### 📊 Review"
+            )
+
+            st.caption(
+                "Check your resume analysis, "
+                "job matching and downloadable report."
+            )
+
+
+    st.info(
+        "💡 Select a target role from the sidebar, "
+        "then upload your resume to begin."
+    )
+
+    st.stop()
 
 
 # =========================================================
 # MAIN APPLICATION
 # =========================================================
 
-if uploaded_file:
+try:
 
-    st.write(
-        f"📁 **File:** {uploaded_file.name}"
+    st.success(
+        f"📁 {uploaded_file.name} uploaded successfully."
     )
 
-    try:
 
-        filename = uploaded_file.name.lower()
+    filename = uploaded_file.name.lower()
 
-        # -------------------------------------------------
-        # TEXT EXTRACTION
-        # -------------------------------------------------
 
-        if filename.endswith(".pdf"):
+    # =====================================================
+    # TEXT EXTRACTION
+    # =====================================================
 
-            raw_text = extract_pdf(
-                uploaded_file
-            )
+    if filename.endswith(".pdf"):
 
-        elif filename.endswith(".docx"):
-
-            raw_text = extract_docx(
-                uploaded_file
-            )
-
-        elif filename.endswith(
-            (".jpg", ".jpeg", ".png")
-        ):
-
-            raw_text = extract_image(
-                uploaded_file
-            )
-
-        else:
-
-            raw_text = ""
-
-        # -------------------------------------------------
-        # CLEAN TEXT
-        # -------------------------------------------------
-
-        text = clean_text(
-            raw_text
+        raw_text = extract_pdf(
+            uploaded_file
         )
 
-        if len(text) < 20:
+    elif filename.endswith(".docx"):
 
-            st.error(
-                "❌ No readable text was found "
-                "in this resume."
-            )
-
-            st.stop()
-
-        st.success(
-            "✅ Resume text extracted successfully!"
+        raw_text = extract_docx(
+            uploaded_file
         )
 
-        # -------------------------------------------------
-        # ANALYSIS
-        # -------------------------------------------------
+    elif filename.endswith(
+        (
+            ".jpg",
+            ".jpeg",
+            ".png"
+        )
+    ):
 
-        analysis = analyze_resume(
-            text,
-            selected_role
+        raw_text = extract_image(
+            uploaded_file
         )
 
-        ats_score = calculate_ats_score(
-            text,
-            selected_role
+    else:
+
+        raw_text = ""
+
+
+    # =====================================================
+    # CLEAN TEXT
+    # =====================================================
+
+    text = clean_text(
+        raw_text
+    )
+
+
+    if len(text) < 20:
+
+        st.error(
+            "❌ No readable text was found "
+            "in this resume."
         )
 
-        # =================================================
-        # DASHBOARD
-        # =================================================
+        st.stop()
 
-        st.divider()
 
-        st.subheader(
-            "📊 Resume Score Dashboard"
-        )
+    st.success(
+        "✅ Resume text extracted successfully!"
+    )
 
-        col1, col2, col3, col4 = st.columns(4)
 
-        col1.metric(
+    # =====================================================
+    # ANALYSIS
+    # =====================================================
+
+    analysis = analyze_resume(
+        text,
+        selected_role
+    )
+
+
+    ats_score = calculate_ats_score(
+        text,
+        selected_role
+    )
+
+
+    jd_analysis = None
+
+
+    # =====================================================
+    # SCORE DASHBOARD
+    # =====================================================
+
+    st.markdown(
+        '<div class="section-title">'
+        '📊 Resume Score Dashboard'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+    c1, c2, c3, c4 = st.columns(
+        4,
+        gap="small"
+    )
+
+
+    with c1:
+
+        st.metric(
             "ATS Score",
             f"{ats_score}/100"
         )
 
-        col2.metric(
+
+    with c2:
+
+        st.metric(
             "Role Match",
             f"{analysis['role_percentage']}%"
         )
 
-        col3.metric(
-            "Skills",
+
+    with c3:
+
+        st.metric(
+            "Skills Detected",
             len(analysis["skills"])
         )
 
-        col4.metric(
-            "Words",
+
+    with c4:
+
+        st.metric(
+            "Word Count",
             analysis["word_count"]
         )
 
-        st.progress(
-            ats_score / 100
+
+    st.progress(
+        ats_score / 100
+    )
+
+
+    if ats_score >= 80:
+
+        st.success(
+            "🌟 Excellent ATS compatibility!"
         )
 
-        if ats_score >= 80:
+    elif ats_score >= 60:
 
-            st.success(
-                "🌟 Excellent ATS compatibility!"
-            )
-
-        elif ats_score >= 60:
-
-            st.info(
-                "👍 Good resume. Some improvements "
-                "can increase the score."
-            )
-
-        else:
-
-            st.warning(
-                "⚠️ Your resume needs improvement."
-            )
-
-        # =================================================
-        # SECTION ANALYSIS
-        # =================================================
-
-        st.divider()
-
-        st.subheader(
-            "📋 Resume Section Analysis"
+        st.info(
+            "👍 Good resume. Some improvements "
+            "can increase the score."
         )
 
-        section_cols = st.columns(4)
+    else:
+
+        st.warning(
+            "⚠️ Your resume needs improvement."
+        )
+
+
+    # =====================================================
+    # ONLY 3 TABS
+    #
+    # 1. Resume Analysis
+    # 2. Job Description Matching
+    # 3. Report
+    #
+    # Areas to Improve is INSIDE Resume Analysis.
+    # =====================================================
+
+    overview_tab, job_tab, report_tab = st.tabs(
+        [
+            "📋 Resume Analysis",
+            "🎯 Job Description Matching",
+            "📥 Report"
+        ]
+    )
+
+
+    # =====================================================
+    # TAB 1 — RESUME ANALYSIS
+    # =====================================================
+
+    with overview_tab:
+
+
+        # -------------------------------------------------
+        # RESUME SECTIONS
+        # -------------------------------------------------
+
+        st.markdown(
+            '<div class="section-title">'
+            '📋 Resume Section Analysis'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="section-subtitle">'
+            'Check whether important resume sections '
+            'were detected.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
 
         section_items = list(
-            analysis["sections"].items()
+            analysis[
+                "sections"
+            ].items()
         )
+
+
+        section_cols = st.columns(
+            4,
+            gap="small"
+        )
+
 
         for index, (
             section,
             exists
-        ) in enumerate(section_items):
+        ) in enumerate(
+            section_items
+        ):
 
             with section_cols[
                 index % 4
             ]:
 
-                if exists:
+                with st.container(
+                    border=True
+                ):
 
-                    st.success(
-                        f"✅ {section}"
-                    )
+                    if exists:
 
-                else:
+                        st.success(
+                            f"✅ {section}"
+                        )
 
-                    st.error(
-                        f"❌ {section}"
-                    )
+                    else:
 
-        # =================================================
+                        st.error(
+                            f"❌ {section}"
+                        )
+
+
+        # -------------------------------------------------
         # SKILLS
+        # -------------------------------------------------
+
+        st.markdown(
+            '<div class="section-title">'
+            '🧠 Skills Analysis'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="section-subtitle">'
+            'Every detected skill is displayed as an individual card.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+        skill_col1, skill_col2 = st.columns(
+            2,
+            gap="large"
+        )
+
+
+        # =================================================
+        # DETECTED SKILLS
         # =================================================
 
-        st.divider()
-
-        col1, col2 = st.columns(2)
-
-        with col1:
+        with skill_col1:
 
             st.subheader(
-                "🧠 Detected Skills"
+                "🔹 Detected Skills"
             )
+
 
             if analysis["skills"]:
 
-                for skill in analysis["skills"]:
+                detected_skill_cols = st.columns(
+                    2,
+                    gap="small"
+                )
 
-                    st.write(
-                        f"✅ {skill.title()}"
-                    )
+
+                for index, skill in enumerate(
+                    analysis["skills"]
+                ):
+
+                    with detected_skill_cols[
+                        index % 2
+                    ]:
+
+                        with st.container(
+                            border=True
+                        ):
+
+                            st.markdown(
+                                f"### 💠 {skill.title()}"
+                            )
+
+                            st.caption(
+                                "Detected in resume"
+                            )
 
             else:
 
@@ -2002,122 +2562,263 @@ if uploaded_file:
                     "No recognized skills detected."
                 )
 
-        with col2:
+
+        # =================================================
+        # TARGET ROLE SKILLS
+        # =================================================
+
+        with skill_col2:
 
             st.subheader(
                 f"🎯 {selected_role} Skills"
             )
 
-            for skill in ROLE_SKILLS[
-                selected_role
-            ]:
 
-                if skill in analysis[
-                    "matching_skills"
+            role_skill_cols = st.columns(
+                2,
+                gap="small"
+            )
+
+
+            for index, skill in enumerate(
+                ROLE_SKILLS[selected_role]
+            ):
+
+                with role_skill_cols[
+                    index % 2
                 ]:
 
-                    st.write(
-                        f"🟢 {skill.title()}"
-                    )
+                    if skill in analysis[
+                        "matching_skills"
+                    ]:
 
-                else:
+                        with st.container(
+                            border=True
+                        ):
 
-                    st.write(
-                        f"🔴 {skill.title()}"
-                    )
+                            st.markdown(
+                                f"### 🟢 {skill.title()}"
+                            )
+
+                            st.caption(
+                                "Skill matched"
+                            )
+
+                    else:
+
+                        with st.container(
+                            border=True
+                        ):
+
+                            st.markdown(
+                                f"### 🔴 {skill.title()}"
+                            )
+
+                            st.caption(
+                                "Skill not detected"
+                            )
+
+
+        # -------------------------------------------------
+        # RESUME FEEDBACK
+        # -------------------------------------------------
+
+        st.markdown(
+            '<div class="section-title">'
+            '💎 Resume Feedback'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+        strengths_col, improve_col = st.columns(
+            2,
+            gap="large"
+        )
+
 
         # =================================================
         # STRENGTHS
         # =================================================
 
-        st.divider()
+        with strengths_col:
 
-        st.subheader(
-            "💪 Resume Strengths"
+            with st.container(
+                border=True
+            ):
+
+                st.subheader(
+                    "💪 Resume Strengths"
+                )
+
+
+                if analysis["strengths"]:
+
+                    for strength in analysis[
+                        "strengths"
+                    ]:
+
+                        st.success(
+                            "✓ " + strength
+                        )
+
+                else:
+
+                    st.info(
+                        "No major strengths detected."
+                    )
+
+
+        # =================================================
+        # AREAS TO IMPROVE
+        #
+        # THIS IS THE ONLY LOCATION.
+        # THERE IS NO SEPARATE TAB.
+        # =================================================
+
+        with improve_col:
+
+            with st.container(
+                border=True
+            ):
+
+                st.subheader(
+                    "⚡ Areas to Improve"
+                )
+
+
+                ai_suggestions = generate_ai_suggestions(
+                    text,
+                    selected_role,
+                    analysis,
+                    jd_analysis
+                )
+
+
+                areas_to_improve = list(
+                    dict.fromkeys(
+                        analysis[
+                            "weaknesses"
+                        ]
+                        +
+                        ai_suggestions
+                    )
+                )
+
+
+                if areas_to_improve:
+
+                    for index, improvement in enumerate(
+                        areas_to_improve,
+                        start=1
+                    ):
+
+                        clean_improvement = (
+                            improvement
+                            .replace(
+                                "**",
+                                ""
+                            )
+                        )
+
+                        st.warning(
+                            f"**{index}.** "
+                            f"{clean_improvement}"
+                        )
+
+                else:
+
+                    st.success(
+                        "🎉 No major areas to improve detected."
+                    )
+
+
+        # -------------------------------------------------
+        # RECOMMENDATIONS
+        # -------------------------------------------------
+
+        st.markdown(
+            '<div class="section-title">'
+            '💡 Resume Recommendations'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        for strength in analysis[
-            "strengths"
-        ]:
 
-            st.success(
-                "✓ " + strength
+        recommendations = list(
+            dict.fromkeys(
+                analysis[
+                    "recommendations"
+                ]
+            )
+        )
+
+
+        if recommendations:
+
+            rec_cols = st.columns(
+                2,
+                gap="small"
             )
 
-        # =================================================
-        # WEAKNESSES
-        # =================================================
 
-        st.subheader(
-            "⚠️ Areas to Improve"
-        )
+            for index, recommendation in enumerate(
+                recommendations
+            ):
 
-        if analysis["weaknesses"]:
+                with rec_cols[
+                    index % 2
+                ]:
 
-            for weakness in analysis[
-                "weaknesses"
-            ]:
+                    with st.container(
+                        border=True
+                    ):
 
-                st.warning(
-                    weakness
-                )
+                        st.info(
+                            "🔹 " + recommendation
+                        )
 
         else:
 
             st.success(
-                "No major weaknesses detected."
+                "No additional recommendations."
             )
 
-        # =================================================
-        # RECOMMENDATIONS
-        # =================================================
 
-        st.divider()
+    # =====================================================
+    # TAB 2 — JOB DESCRIPTION MATCHING
+    # =====================================================
 
-        st.subheader(
-            "💡 Resume Recommendations"
+    with job_tab:
+
+        st.markdown(
+            '<div class="section-title">'
+            '🎯 Job Description Matching'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        recommendations = list(
-            dict.fromkeys(
-                analysis["recommendations"]
-            )
+        st.markdown(
+            '<div class="section-subtitle">'
+            'Paste the job description to compare '
+            'your resume with the actual requirements.'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        for recommendation in recommendations:
-
-            st.write(
-                "🔹 " + recommendation
-            )
-
-        # =================================================
-        # JOB DESCRIPTION MATCHING
-        # =================================================
-
-        st.divider()
-
-        st.subheader(
-            "🔎 Job Description Matching"
-        )
-
-        st.write(
-            "Paste the job description of the "
-            "position you want to apply for."
-        )
 
         job_description = st.text_area(
             "📋 Job Description",
-            height=250,
+            height=180,
             placeholder=(
-                "Example:\n\n"
-                "We are looking for a Cybersecurity "
-                "Analyst with experience in network "
-                "security, Linux, SIEM, Wireshark, "
-                "penetration testing and threat detection."
+                "Paste the complete job description here...\n\n"
+                "Example:\n"
+                "We are looking for a Data Analyst "
+                "with experience in Python, SQL, "
+                "Pandas, Excel and Power BI."
             )
         )
 
-        jd_analysis = None
 
         if job_description.strip():
 
@@ -2132,41 +2833,60 @@ if uploaded_file:
 
             else:
 
-                jd_analysis = (
-                    analyze_job_description(
-                        text,
-                        job_description
-                    )
+                jd_analysis = analyze_job_description(
+                    text,
+                    job_description
                 )
 
-                # -----------------------------------------
+
+                # =========================================
                 # MATCH SCORE
-                # -----------------------------------------
+                # =========================================
 
-                st.write(
-                    "### 📊 Job Match Results"
+                st.markdown(
+                    '<div class="section-title">'
+                    '📊 Job Match Results'
+                    '</div>',
+                    unsafe_allow_html=True
                 )
 
-                c1, c2, c3 = st.columns(3)
 
-                c1.metric(
-                    "Overall Match",
-                    f"{jd_analysis['final_match']}%"
+                j1, j2, j3 = st.columns(
+                    3,
+                    gap="small"
                 )
 
-                c2.metric(
-                    "Text Match",
-                    f"{jd_analysis['text_match']}%"
-                )
 
-                c3.metric(
-                    "Skill Match",
-                    f"{jd_analysis['skill_match']}%"
-                )
+                with j1:
+
+                    st.metric(
+                        "Overall Match",
+                        f"{jd_analysis['final_match']}%"
+                    )
+
+
+                with j2:
+
+                    st.metric(
+                        "Text Match",
+                        f"{jd_analysis['text_match']}%"
+                    )
+
+
+                with j3:
+
+                    st.metric(
+                        "Skill Match",
+                        f"{jd_analysis['skill_match']}%"
+                    )
+
 
                 st.progress(
-                    jd_analysis["final_match"] / 100
+                    jd_analysis[
+                        "final_match"
+                    ] / 100
                 )
+
 
                 if jd_analysis[
                     "final_match"
@@ -2191,84 +2911,111 @@ if uploaded_file:
                         "Consider tailoring your resume."
                     )
 
-                # -----------------------------------------
-                # MATCHING / MISSING
-                # -----------------------------------------
 
-                c1, c2 = st.columns(2)
+                # =========================================
+                # MATCHING + MISSING SKILLS
+                # =========================================
 
-                with c1:
+                match_col, missing_col = st.columns(
+                    2,
+                    gap="large"
+                )
 
-                    st.subheader(
-                        "✅ Matching Skills"
-                    )
 
-                    if jd_analysis[
-                        "matching_skills"
-                    ]:
+                with match_col:
 
-                        for skill in jd_analysis[
+                    with st.container(
+                        border=True
+                    ):
+
+                        st.subheader(
+                            "✅ Matching Skills"
+                        )
+
+
+                        if jd_analysis[
                             "matching_skills"
                         ]:
 
-                            st.write(
-                                f"🟢 {skill.title()}"
+                            for skill in jd_analysis[
+                                "matching_skills"
+                            ]:
+
+                                st.success(
+                                    f"🟢 {skill.title()}"
+                                )
+
+                        else:
+
+                            st.warning(
+                                "No matching skills detected."
                             )
 
-                    else:
 
-                        st.warning(
-                            "No matching skills detected."
+                with missing_col:
+
+                    with st.container(
+                        border=True
+                    ):
+
+                        st.subheader(
+                            "❌ Missing Skills"
                         )
 
-                with c2:
 
-                    st.subheader(
-                        "❌ Missing Skills"
-                    )
-
-                    if jd_analysis[
-                        "missing_skills"
-                    ]:
-
-                        for skill in jd_analysis[
+                        if jd_analysis[
                             "missing_skills"
                         ]:
 
-                            st.write(
-                                f"🔴 {skill.title()}"
+                            for skill in jd_analysis[
+                                "missing_skills"
+                            ]:
+
+                                st.error(
+                                    f"🔴 {skill.title()}"
+                                )
+
+                        else:
+
+                            st.success(
+                                "No major missing skills detected."
                             )
 
-                    else:
 
-                        st.success(
-                            "No major missing skills detected."
-                        )
-
-                # -----------------------------------------
+                # =========================================
                 # JOB SKILLS
-                # -----------------------------------------
-
-                st.divider()
+                # =========================================
 
                 st.subheader(
                     "🎯 Skills Detected in Job Description"
                 )
 
+
                 if jd_analysis[
                     "job_skills"
                 ]:
 
-                    skill_text = " • ".join(
-                        skill.title()
-                        for skill in jd_analysis[
-                            "job_skills"
-                        ]
+                    job_skill_cols = st.columns(
+                        3,
+                        gap="small"
                     )
 
-                    st.info(
-                        skill_text
-                    )
+
+                    for index, skill in enumerate(
+                        jd_analysis["job_skills"]
+                    ):
+
+                        with job_skill_cols[
+                            index % 3
+                        ]:
+
+                            with st.container(
+                                border=True
+                            ):
+
+                                st.markdown(
+                                    f"### 💠 {skill.title()}"
+                                )
 
                 else:
 
@@ -2277,23 +3024,28 @@ if uploaded_file:
                         "were detected."
                     )
 
-                # -----------------------------------------
-                # KEYWORDS
-                # -----------------------------------------
 
-                st.divider()
+                # =========================================
+                # KEYWORDS
+                # =========================================
 
                 st.subheader(
                     "🔑 Important Job Keywords"
                 )
 
+
                 keywords = jd_analysis[
                     "important_keywords"
                 ]
 
+
                 if keywords:
 
-                    keyword_cols = st.columns(3)
+                    keyword_cols = st.columns(
+                        3,
+                        gap="small"
+                    )
+
 
                     for index, keyword in enumerate(
                         keywords
@@ -2303,19 +3055,29 @@ if uploaded_file:
                             index % 3
                         ]:
 
-                            st.write(
-                                f"🔹 {keyword.title()}"
-                            )
+                            with st.container(
+                                border=True
+                            ):
 
-                # -----------------------------------------
-                # IMPROVEMENT
-                # -----------------------------------------
+                                st.markdown(
+                                    f"**{keyword.title()}**"
+                                )
 
-                st.divider()
+                else:
+
+                    st.info(
+                        "No important keywords detected."
+                    )
+
+
+                # =========================================
+                # JOB MATCH IMPROVEMENT
+                # =========================================
 
                 st.subheader(
                     "💡 How to Improve Your Job Match"
                 )
+
 
                 if jd_analysis[
                     "missing_skills"
@@ -2327,6 +3089,7 @@ if uploaded_file:
                         "in your resume:"
                     )
 
+
                     for skill in jd_analysis[
                         "missing_skills"
                     ]:
@@ -2334,6 +3097,7 @@ if uploaded_file:
                         st.write(
                             f"• **{skill.title()}**"
                         )
+
 
                     st.info(
                         "Only add skills that you "
@@ -2348,26 +3112,44 @@ if uploaded_file:
                         "the job description."
                     )
 
+
                 st.caption(
                     "ℹ️ Match percentage is based on "
                     "text and skill similarity. It does "
                     "not predict hiring probability."
                 )
 
-        # =================================================
-        # AI IMPROVEMENT
-        # =================================================
 
-        st.divider()
+        else:
 
-        st.subheader(
-            "🤖 AI Resume Improvement Generator"
+            st.info(
+                "👆 Paste a job description above "
+                "to see the matching analysis."
+            )
+
+
+    # =====================================================
+    # TAB 3 — REPORT
+    # =====================================================
+
+    with report_tab:
+
+        st.markdown(
+            '<div class="section-title">'
+            '📥 Resume Analysis Report'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        st.write(
-            "Get personalized suggestions based on "
-            "your resume, target role and job description."
+        st.markdown(
+            '<div class="section-subtitle">'
+            'Download the complete analysis report.'
+            '</div>',
+            unsafe_allow_html=True
         )
+
+
+        # Recalculate suggestions for report
 
         ai_suggestions = generate_ai_suggestions(
             text,
@@ -2376,29 +3158,6 @@ if uploaded_file:
             jd_analysis
         )
 
-        for index, suggestion in enumerate(
-            ai_suggestions,
-            start=1
-        ):
-
-            st.markdown(
-                f"**{index}.** {suggestion}"
-            )
-
-        st.info(
-            "💡 Only include skills and experiences "
-            "that are genuinely yours."
-        )
-
-        # =================================================
-        # DOWNLOAD REPORT
-        # =================================================
-
-        st.divider()
-
-        st.subheader(
-            "📥 Download Analysis"
-        )
 
         report = create_report(
             uploaded_file.name,
@@ -2409,131 +3168,66 @@ if uploaded_file:
             ai_suggestions
         )
 
+
         st.download_button(
-            label="📄 Download Resume Analysis",
+            label="📥 Download Resume Analysis Report",
             data=report,
             file_name="resume_analysis.txt",
-            mime="text/plain"
+            mime="text/plain",
+            use_container_width=True
         )
 
-        # =================================================
-        # EXTRACTED TEXT
-        # =================================================
 
-        st.divider()
+        # ================================================
+        # REPORT PREVIEW
+        # ================================================
+
+        st.markdown(
+            '<div class="section-title">'
+            '📄 Report Preview'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+
+        with st.container(
+            border=True
+        ):
+
+            st.text(
+                report
+            )
+
+
+        # ================================================
+        # EXTRACTED TEXT
+        # ================================================
+
+        st.markdown(
+            '<div class="section-title">'
+            '📃 Extracted Resume Text'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
 
         with st.expander(
-            "📃 View Extracted Resume Text"
+            "View Extracted Resume Text"
         ):
 
             st.text_area(
                 "Extracted Text",
                 text,
-                height=400
+                height=350
             )
 
-    except Exception as error:
 
-        st.error(
-            "❌ Resume analysis failed."
-        )
+except Exception as error:
 
-        st.code(
-            str(error)
-        )
+    st.error(
+        "❌ Resume analysis failed."
+    )
 
-
-# =========================================================
-# HOME SCREEN
-# =========================================================
-
-else:
-
-    st.markdown(
-        """
-        ## 🚀 How It Works
-
-        **1️⃣ Upload Resume**
-
-        Upload a PDF, DOCX, JPG, JPEG or PNG resume.
-
-        **2️⃣ Text Extraction**
-
-        The application extracts text from your resume.
-        OCR is automatically used for scanned PDFs
-        and images.
-
-        **3️⃣ Resume Analysis**
-
-        The system analyzes:
-
-        - ATS compatibility
-        - Resume sections
-        - Technical skills
-        - Target job-role skills
-        - Strengths
-        - Weaknesses
-        - Recommendations
-
-        **4️⃣ Job Description Matching**
-
-        Paste a job description and the system
-        calculates:
-
-        - Overall match
-        - Text similarity
-        - Skill similarity
-        - Matching skills
-        - Missing skills
-        - Important keywords
-
-        **5️⃣ AI Resume Improvement**
-
-        Receive personalized recommendations
-        based on your resume and target job.
-
-        **6️⃣ Download Report**
-
-        Download your complete analysis report.
-
-        ---
-
-        ## 🧠 AI / ML Technologies
-
-        ### Natural Language Processing
-
-        Used to process and analyze resume
-        and job-description text.
-
-        ### TF-IDF
-
-        Used to identify important terms
-        in the text.
-
-        ### Cosine Similarity
-
-        Used to calculate similarity between
-        resume and job-description text.
-
-        ### OCR
-
-        Used to extract text from scanned
-        resumes and images.
-
-        ### Keyword Extraction
-
-        Used to identify important terms
-        from job descriptions.
-
-        ---
-
-        ## 📌 Dataset
-
-        This project does **not require a
-        training dataset**.
-
-        It uses NLP algorithms, OCR,
-        predefined skill knowledge and
-        text similarity techniques.
-        """
+    st.exception(
+        error
     )
