@@ -1,8 +1,6 @@
 import io
 import os
 import re
-import shutil
-
 import streamlit as st
 import pytesseract
 from PIL import Image
@@ -11,10 +9,9 @@ from docx import Document
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-
-# =========================================================
-# PAGE CONFIGURATION
-# =========================================================
+# ============================================================
+# PAGE CONFIG
+# ============================================================
 
 st.set_page_config(
     page_title="AI Resume Analyzer",
@@ -23,56 +20,32 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-# =========================================================
+# ============================================================
 # TESSERACT CONFIGURATION
-# =========================================================
+# ============================================================
 
-TESSERACT_PATH = shutil.which("tesseract")
+TESSERACT_PATH = None
 
-if not TESSERACT_PATH:
-    possible_paths = [
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-    ]
+possible_tesseract_paths = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+]
 
-    for path in possible_paths:
-        if os.path.exists(path):
-            TESSERACT_PATH = path
-            break
+for path in possible_tesseract_paths:
+    if os.path.exists(path):
+        TESSERACT_PATH = path
+        break
 
 if TESSERACT_PATH:
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
-
-# =========================================================
-# POPPLER CONFIGURATION
-# =========================================================
-
-WINDOWS_POPPLER_PATH = (
-    r"C:\Users\rohith\Downloads"
-    r"\Release-26.09.0-0"
-    r"\poppler-26.09.0"
-    r"\Library\bin"
-)
-
-if os.path.exists(WINDOWS_POPPLER_PATH):
-    POPPLER_PATH = WINDOWS_POPPLER_PATH
-else:
-    POPPLER_PATH = None
-
-
-# =========================================================
-# UI STYLE
-# =========================================================
+# ============================================================
+# CUSTOM CSS
+# ============================================================
 
 st.markdown(
     """
     <style>
-
-    /* ================================
-       MAIN APP
-       ================================ */
 
     .stApp {
         background:
@@ -89,17 +62,11 @@ st.markdown(
         color: #f8fafc;
     }
 
-
     .block-container {
         max-width: 1450px;
         padding-top: 2rem;
         padding-bottom: 3rem;
     }
-
-
-    /* ================================
-       SIDEBAR
-       ================================ */
 
     [data-testid="stSidebar"] {
         background:
@@ -119,11 +86,6 @@ st.markdown(
         color: white;
     }
 
-
-    /* ================================
-       TITLE
-       ================================ */
-
     .app-title {
         color: white;
         font-size: clamp(2.2rem, 4vw, 3.4rem);
@@ -140,11 +102,6 @@ st.markdown(
         margin-top: 0.4rem;
         margin-bottom: 1.2rem;
     }
-
-
-    /* ================================
-       HERO
-       ================================ */
 
     .hero-box {
         background:
@@ -185,11 +142,6 @@ st.markdown(
         line-height: 1.6;
     }
 
-
-    /* ================================
-       UPLOAD CARD
-       ================================ */
-
     .upload-card {
         background: rgba(9, 17, 33, 0.86);
         border: 1px solid rgba(129, 140, 248, 0.25);
@@ -210,11 +162,6 @@ st.markdown(
         margin-bottom: 0.8rem;
     }
 
-
-    /* ================================
-       SECTION TITLES
-       ================================ */
-
     .section-title {
         color: white;
         font-size: 1.45rem;
@@ -229,21 +176,11 @@ st.markdown(
         margin-bottom: 0.8rem;
     }
 
-
-    /* ================================
-       CARDS
-       ================================ */
-
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: rgba(8, 16, 31, 0.78);
         border-color: rgba(148, 163, 184, 0.15) !important;
         border-radius: 16px !important;
     }
-
-
-    /* ================================
-       METRICS
-       ================================ */
 
     [data-testid="stMetric"] {
         background:
@@ -270,73 +207,44 @@ st.markdown(
         font-weight: 900 !important;
     }
 
-
-    /* ================================
-       SKILL BOXES
-       ================================ */
-
-    .skill-box {
-        background:
-            linear-gradient(
-                135deg,
-                rgba(15, 23, 42, 0.96),
-                rgba(20, 30, 55, 0.90)
-            );
-
-        border: 1px solid rgba(99, 102, 241, 0.30);
-        border-radius: 12px;
-
-        padding: 0.65rem 0.8rem;
-
-        margin-bottom: 0.45rem;
-
-        color: #e2e8f0;
-        font-weight: 700;
-
+    .compact-skill-card {
+        background: rgba(15, 23, 42, 0.78);
+        border: 1px solid rgba(99, 102, 241, 0.28);
+        border-radius: 10px;
+        padding: 0.55rem 0.7rem;
+        margin-bottom: 0.5rem;
+        min-height: 58px;
+        box-sizing: border-box;
         transition: all 0.2s ease;
     }
 
-    .skill-box:hover {
-        border-color: rgba(129, 140, 248, 0.75);
-        transform: translateY(-2px);
+    .compact-skill-card:hover {
+        border-color: rgba(129, 140, 248, 0.7);
+        transform: translateY(-1px);
     }
 
-    .skill-dot {
-        display: inline-block;
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        margin-right: 8px;
-        background: #60a5fa;
+    .compact-skill-title {
+        color: #f8fafc;
+        font-size: 1rem;
+        line-height: 1.2;
+        font-weight: 800;
+        word-break: break-word;
     }
 
-
-    /* ================================
-       ROLE SKILL BOX
-       ================================ */
-
-    .role-skill-box {
-        background: rgba(15, 23, 42, 0.88);
-        border-radius: 12px;
-        padding: 0.65rem 0.8rem;
-        margin-bottom: 0.45rem;
-        font-weight: 700;
+    .compact-skill-caption {
+        color: #94a3b8;
+        font-size: 0.72rem;
+        margin-top: 0.25rem;
+        line-height: 1.2;
     }
 
-    .role-skill-match {
-        border: 1px solid rgba(34, 197, 94, 0.35);
-        color: #86efac;
+    .compact-skill-match {
+        border-color: rgba(34, 197, 94, 0.38);
     }
 
-    .role-skill-missing {
-        border: 1px solid rgba(239, 68, 68, 0.35);
-        color: #fca5a5;
+    .compact-skill-missing {
+        border-color: rgba(239, 68, 68, 0.38);
     }
-
-
-    /* ================================
-       NAVIGATION TABS
-       ================================ */
 
     [data-testid="stTabs"] {
         margin-top: 1.3rem;
@@ -356,11 +264,6 @@ st.markdown(
         background: #6366f1 !important;
     }
 
-
-    /* ================================
-       INPUTS
-       ================================ */
-
     [data-baseweb="select"] > div {
         background-color: #0e1728 !important;
         border-color: rgba(148, 163, 184, 0.20) !important;
@@ -371,11 +274,6 @@ st.markdown(
         background-color: #0e1728 !important;
         color: white !important;
     }
-
-
-    /* ================================
-       BUTTONS
-       ================================ */
 
     .stButton > button,
     .stDownloadButton > button {
@@ -394,11 +292,6 @@ st.markdown(
         font-weight: 800;
     }
 
-
-    /* ================================
-       FILE UPLOADER
-       ================================ */
-
     [data-testid="stFileUploader"] {
         background: rgba(8, 16, 31, 0.82);
         border: 1px dashed rgba(129, 140, 248, 0.48);
@@ -406,19 +299,9 @@ st.markdown(
         padding: 0.5rem;
     }
 
-
-    /* ================================
-       ALERTS
-       ================================ */
-
     [data-testid="stAlert"] {
         border-radius: 12px;
     }
-
-
-    /* ================================
-       MOBILE
-       ================================ */
 
     @media (max-width: 800px) {
 
@@ -441,14 +324,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-# =========================================================
+# ============================================================
 # SKILLS DATABASE
-# =========================================================
+# ============================================================
 
 SKILLS = [
-
-    # Programming
     "python",
     "java",
     "c",
@@ -456,8 +336,6 @@ SKILLS = [
     "javascript",
     "typescript",
     "sql",
-
-    # Web
     "html",
     "css",
     "react",
@@ -466,8 +344,6 @@ SKILLS = [
     "flask",
     "spring",
     "rest api",
-
-    # AI / ML
     "machine learning",
     "deep learning",
     "artificial intelligence",
@@ -481,16 +357,12 @@ SKILLS = [
     "nlp",
     "natural language processing",
     "computer vision",
-
-    # Tools
     "git",
     "github",
     "docker",
     "aws",
     "azure",
     "linux",
-
-    # Database / Analytics
     "excel",
     "power bi",
     "tableau",
@@ -498,8 +370,6 @@ SKILLS = [
     "mysql",
     "postgresql",
     "firebase",
-
-    # Cybersecurity
     "cybersecurity",
     "network security",
     "computer networks",
@@ -519,8 +389,6 @@ SKILLS = [
     "threat detection",
     "risk assessment",
     "cloud security",
-
-    # Soft Skills
     "communication",
     "leadership",
     "problem solving",
@@ -528,13 +396,11 @@ SKILLS = [
     "project management"
 ]
 
-
-# =========================================================
-# JOB ROLE SKILLS
-# =========================================================
+# ============================================================
+# ROLE SKILLS
+# ============================================================
 
 ROLE_SKILLS = {
-
     "AI/ML Engineer": [
         "python",
         "machine learning",
@@ -600,13 +466,11 @@ ROLE_SKILLS = {
     ]
 }
 
-
-# =========================================================
-# RESUME SECTIONS
-# =========================================================
+# ============================================================
+# RESUME SECTION DEFINITIONS
+# ============================================================
 
 SECTION_DEFINITIONS = {
-
     "Contact Information": [
         "email",
         "phone",
@@ -653,10 +517,9 @@ SECTION_DEFINITIONS = {
     ]
 }
 
-
-# =========================================================
+# ============================================================
 # TESSERACT CHECK
-# =========================================================
+# ============================================================
 
 def check_tesseract():
 
@@ -674,44 +537,9 @@ def check_tesseract():
         return False, None
 
 
-# =========================================================
-# POPPLER CHECK
-# =========================================================
-
-def check_poppler():
-
-    if POPPLER_PATH:
-
-        pdfinfo = os.path.join(
-            POPPLER_PATH,
-            "pdfinfo.exe"
-        )
-
-        pdftoppm = os.path.join(
-            POPPLER_PATH,
-            "pdftoppm.exe"
-        )
-
-        if (
-            os.path.exists(pdfinfo)
-            and os.path.exists(pdftoppm)
-        ):
-
-            return True
-
-    if (
-        shutil.which("pdfinfo")
-        and shutil.which("pdftoppm")
-    ):
-
-        return True
-
-    return False
-
-
-# =========================================================
+# ============================================================
 # OCR IMAGE
-# =========================================================
+# ============================================================
 
 def ocr_image(image):
 
@@ -726,7 +554,9 @@ def ocr_image(image):
 
     try:
 
-        return pytesseract.image_to_string(image)
+        return pytesseract.image_to_string(
+            image
+        )
 
     except Exception as error:
 
@@ -736,34 +566,56 @@ def ocr_image(image):
         ) from error
 
 
-# =========================================================
-# PDF TEXT EXTRACTION
-# =========================================================
+# ============================================================
+# PDF EXTRACTION
+# NO POPPLER REQUIRED
+# ============================================================
 
 def extract_pdf(file):
 
     file.seek(0)
 
-    reader = PdfReader(file)
+    # --------------------------------------------------------
+    # FIRST: TRY NORMAL PDF TEXT EXTRACTION
+    # --------------------------------------------------------
 
-    text_parts = []
+    try:
 
-    for page in reader.pages:
+        reader = PdfReader(file)
 
-        try:
+        text_parts = []
 
-            page_text = page.extract_text()
+        for page in reader.pages:
 
-            if page_text:
-                text_parts.append(page_text)
+            try:
 
-        except Exception:
-            pass
+                page_text = page.extract_text()
 
-    text = "\n".join(text_parts).strip()
+                if page_text:
+                    text_parts.append(page_text)
+
+            except Exception:
+
+                pass
+
+        text = "\n".join(
+            text_parts
+        ).strip()
+
+    except Exception:
+
+        text = ""
+
+    # If normal text extraction worked,
+    # return it without OCR.
 
     if len(text) >= 80:
+
         return text
+
+    # --------------------------------------------------------
+    # SECOND: OCR SCANNED PDF
+    # --------------------------------------------------------
 
     st.info(
         "🔍 Scanned PDF detected. Running OCR..."
@@ -778,67 +630,108 @@ def extract_pdf(file):
             "or could not be found."
         )
 
-    if not check_poppler():
+    try:
+
+        import fitz
+
+    except ImportError:
 
         raise RuntimeError(
-            "Poppler was not found. "
-            "Check your Poppler installation."
+            "PyMuPDF is not installed. "
+            "Run: pip install PyMuPDF"
         )
 
     try:
-
-        from pdf2image import convert_from_bytes
 
         file.seek(0)
 
         pdf_bytes = file.read()
 
-        if POPPLER_PATH:
+        pdf_document = fitz.open(
+            stream=pdf_bytes,
+            filetype="pdf"
+        )
 
-            images = convert_from_bytes(
-                pdf_bytes,
-                dpi=200,
-                poppler_path=POPPLER_PATH
+        if len(pdf_document) == 0:
+
+            raise RuntimeError(
+                "The PDF contains no pages."
             )
 
-        else:
+        results = []
 
-            images = convert_from_bytes(
-                pdf_bytes,
-                dpi=200
+        progress = st.progress(0)
+
+        total_pages = len(
+            pdf_document
+        )
+
+        for index, page in enumerate(
+            pdf_document
+        ):
+
+            # Render PDF page into an image.
+            # This completely removes the need
+            # for Poppler.
+
+            pix = page.get_pixmap(
+                matrix=fitz.Matrix(
+                    2,
+                    2
+                ),
+                alpha=False
             )
+
+            image = Image.frombytes(
+                "RGB",
+                [
+                    pix.width,
+                    pix.height
+                ],
+                pix.samples
+            )
+
+            extracted_text = ocr_image(
+                image
+            )
+
+            if extracted_text.strip():
+
+                results.append(
+                    extracted_text
+                )
+
+            progress.progress(
+                (index + 1) / total_pages
+            )
+
+        progress.empty()
+
+        pdf_document.close()
+
+        final_text = "\n".join(
+            results
+        ).strip()
+
+        if not final_text:
+
+            raise RuntimeError(
+                "OCR could not extract readable "
+                "text from this PDF."
+            )
+
+        return final_text
 
     except Exception as error:
 
         raise RuntimeError(
-            "Could not convert the scanned PDF "
-            "into images."
+            f"Could not process the scanned PDF: {error}"
         ) from error
 
-    results = []
 
-    progress = st.progress(0)
-
-    total_pages = len(images)
-
-    for index, image in enumerate(images):
-
-        extracted_text = ocr_image(image)
-
-        results.append(extracted_text)
-
-        progress.progress(
-            (index + 1) / total_pages
-        )
-
-    progress.empty()
-
-    return "\n".join(results)
-
-
-# =========================================================
-# DOCX TEXT EXTRACTION
-# =========================================================
+# ============================================================
+# DOCX EXTRACTION
+# ============================================================
 
 def extract_docx(file):
 
@@ -846,6 +739,7 @@ def extract_docx(file):
 
     parts = []
 
+    # Paragraphs
     for paragraph in document.paragraphs:
 
         if paragraph.text.strip():
@@ -854,6 +748,7 @@ def extract_docx(file):
                 paragraph.text
             )
 
+    # Tables
     for table in document.tables:
 
         for row in table.rows:
@@ -874,6 +769,7 @@ def extract_docx(file):
                     " ".join(row_text)
                 )
 
+    # Images inside DOCX
     for relationship in document.part.rels.values():
 
         if "image" in relationship.reltype:
@@ -885,14 +781,20 @@ def extract_docx(file):
                 )
 
                 image = Image.open(
-                    io.BytesIO(image_data)
+                    io.BytesIO(
+                        image_data
+                    )
                 )
 
-                extracted = ocr_image(image)
+                extracted = ocr_image(
+                    image
+                )
 
                 if extracted.strip():
 
-                    parts.append(extracted)
+                    parts.append(
+                        extracted
+                    )
 
             except Exception:
 
@@ -901,9 +803,9 @@ def extract_docx(file):
     return "\n".join(parts)
 
 
-# =========================================================
-# IMAGE TEXT EXTRACTION
-# =========================================================
+# ============================================================
+# IMAGE EXTRACTION
+# ============================================================
 
 def extract_image(file):
 
@@ -911,14 +813,18 @@ def extract_image(file):
 
     if image.mode != "RGB":
 
-        image = image.convert("RGB")
+        image = image.convert(
+            "RGB"
+        )
 
-    return ocr_image(image)
+    return ocr_image(
+        image
+    )
 
 
-# =========================================================
+# ============================================================
 # CLEAN TEXT
-# =========================================================
+# ============================================================
 
 def clean_text(text):
 
@@ -933,9 +839,9 @@ def clean_text(text):
     return text.strip()
 
 
-# =========================================================
+# ============================================================
 # FIND SKILLS
-# =========================================================
+# ============================================================
 
 def find_skills(text):
 
@@ -947,7 +853,9 @@ def find_skills(text):
 
         pattern = (
             r"(?<![a-z0-9])"
-            + re.escape(skill.lower())
+            + re.escape(
+                skill.lower()
+            )
             + r"(?![a-z0-9])"
         )
 
@@ -956,16 +864,21 @@ def find_skills(text):
             text
         ):
 
-            found.append(skill)
+            found.append(
+                skill
+            )
 
     return found
 
 
-# =========================================================
+# ============================================================
 # SECTION DETECTION
-# =========================================================
+# ============================================================
 
-def section_present(text, names):
+def section_present(
+    text,
+    names
+):
 
     text = text.lower()
 
@@ -987,10 +900,6 @@ def section_present(text, names):
     return False
 
 
-# =========================================================
-# ANALYZE SECTIONS
-# =========================================================
-
 def analyze_sections(text):
 
     results = {}
@@ -1005,22 +914,26 @@ def analyze_sections(text):
     return results
 
 
-# =========================================================
+# ============================================================
 # RESUME ANALYSIS
-# =========================================================
+# ============================================================
 
 def analyze_resume(
     text,
     selected_role
 ):
 
-    skills = find_skills(text)
+    skills = find_skills(
+        text
+    )
 
     word_count = len(
         text.split()
     )
 
-    sections = analyze_sections(text)
+    sections = analyze_sections(
+        text
+    )
 
     strengths = []
 
@@ -1028,9 +941,7 @@ def analyze_resume(
 
     recommendations = []
 
-
-    # WORD COUNT
-
+    # Word count
     if 250 <= word_count <= 900:
 
         strengths.append(
@@ -1059,10 +970,10 @@ def analyze_resume(
             "on relevant achievements."
         )
 
-
-    # CONTACT
-
-    if sections["Contact Information"]:
+    # Contact
+    if sections[
+        "Contact Information"
+    ]:
 
         strengths.append(
             "Contact information detected."
@@ -1080,10 +991,10 @@ def analyze_resume(
             "professional LinkedIn/GitHub links."
         )
 
-
-    # EDUCATION
-
-    if sections["Education"]:
+    # Education
+    if sections[
+        "Education"
+    ]:
 
         strengths.append(
             "Education section detected."
@@ -1099,10 +1010,10 @@ def analyze_resume(
             "Add a clearly labelled Education section."
         )
 
-
-    # PROJECTS
-
-    if sections["Projects"]:
+    # Projects
+    if sections[
+        "Projects"
+    ]:
 
         strengths.append(
             "Projects section detected."
@@ -1119,10 +1030,10 @@ def analyze_resume(
             "mention technologies used."
         )
 
-
-    # EXPERIENCE
-
-    if sections["Experience"]:
+    # Experience
+    if sections[
+        "Experience"
+    ]:
 
         strengths.append(
             "Experience or internship section detected."
@@ -1131,14 +1042,14 @@ def analyze_resume(
     else:
 
         recommendations.append(
-            "Add internships, practical experience "
-            "or relevant work experience if available."
+            "Add internships, freelance work "
+            "or relevant practical experience if available."
         )
 
-
-    # SKILLS
-
-    if sections["Skills"]:
+    # Skills
+    if sections[
+        "Skills"
+    ]:
 
         strengths.append(
             "Technical Skills section detected."
@@ -1154,10 +1065,10 @@ def analyze_resume(
             "Create a dedicated Technical Skills section."
         )
 
-
-    # CERTIFICATIONS
-
-    if sections["Certifications"]:
+    # Certifications
+    if sections[
+        "Certifications"
+    ]:
 
         strengths.append(
             "Certifications section detected."
@@ -1169,10 +1080,10 @@ def analyze_resume(
             "Add relevant certifications if you have them."
         )
 
-
-    # SUMMARY
-
-    if sections["Professional Summary"]:
+    # Summary
+    if sections[
+        "Professional Summary"
+    ]:
 
         strengths.append(
             "Professional summary/profile detected."
@@ -1185,9 +1096,7 @@ def analyze_resume(
             "tailored to the target role."
         )
 
-
-    # SKILL COUNT
-
+    # Skill count
     if len(skills) >= 8:
 
         strengths.append(
@@ -1212,9 +1121,7 @@ def analyze_resume(
             "you genuinely know."
         )
 
-
-    # ROLE MATCH
-
+    # Role matching
     target_skills = ROLE_SKILLS[
         selected_role
     ]
@@ -1227,20 +1134,24 @@ def analyze_resume(
 
         if skill in skills:
 
-            matching_skills.append(skill)
+            matching_skills.append(
+                skill
+            )
 
         else:
 
-            missing_skills.append(skill)
+            missing_skills.append(
+                skill
+            )
 
     role_percentage = round(
         (
             len(matching_skills)
-            / len(target_skills)
+            /
+            len(target_skills)
         ) * 100,
         1
     )
-
 
     if role_percentage >= 75:
 
@@ -1257,8 +1168,8 @@ def analyze_resume(
         )
 
         recommendations.append(
-            f"Improve your {selected_role} skill "
-            "coverage where applicable."
+            f"Improve your {selected_role} "
+            "skill coverage where applicable."
         )
 
     else:
@@ -1273,32 +1184,22 @@ def analyze_resume(
             f"{selected_role}."
         )
 
-
     return {
-
         "skills": skills,
-
         "matching_skills": matching_skills,
-
         "missing_skills": missing_skills,
-
         "role_percentage": role_percentage,
-
         "word_count": word_count,
-
         "sections": sections,
-
         "strengths": strengths,
-
         "weaknesses": weaknesses,
-
         "recommendations": recommendations
     }
 
 
-# =========================================================
+# ============================================================
 # ATS SCORE
-# =========================================================
+# ============================================================
 
 def calculate_ats_score(
     text,
@@ -1320,7 +1221,6 @@ def calculate_ats_score(
         "sections"
     ]
 
-
     if 250 <= word_count <= 900:
 
         score += 15
@@ -1333,48 +1233,35 @@ def calculate_ats_score(
 
         score += 5
 
-
     if sections[
         "Contact Information"
     ]:
-
         score += 10
-
 
     if sections[
         "Education"
     ]:
-
         score += 10
-
 
     if sections[
         "Experience"
     ]:
-
         score += 15
-
 
     if sections[
         "Projects"
     ]:
-
         score += 15
-
 
     if sections[
         "Skills"
     ]:
-
         score += 15
-
 
     if sections[
         "Professional Summary"
     ]:
-
         score += 5
-
 
     score += round(
         analysis[
@@ -1388,9 +1275,9 @@ def calculate_ats_score(
     )
 
 
-# =========================================================
-# JOB DESCRIPTION MATCHING
-# =========================================================
+# ============================================================
+# JOB DESCRIPTION ANALYSIS
+# ============================================================
 
 def analyze_job_description(
     resume_text,
@@ -1405,12 +1292,10 @@ def analyze_job_description(
         job_description
     )
 
-
     vectorizer = TfidfVectorizer(
         stop_words="english",
         ngram_range=(1, 2)
     )
-
 
     matrix = vectorizer.fit_transform(
         [
@@ -1419,27 +1304,27 @@ def analyze_job_description(
         ]
     )
 
-
     similarity = cosine_similarity(
         matrix[0:1],
         matrix[1:2]
     )[0][0]
-
 
     text_match = round(
         similarity * 100,
         1
     )
 
-
     resume_skills = set(
-        find_skills(resume_clean)
+        find_skills(
+            resume_clean
+        )
     )
 
     jd_skills = set(
-        find_skills(jd_clean)
+        find_skills(
+            jd_clean
+        )
     )
-
 
     matching_skills = sorted(
         resume_skills.intersection(
@@ -1447,20 +1332,19 @@ def analyze_job_description(
         )
     )
 
-
     missing_skills = sorted(
         jd_skills.difference(
             resume_skills
         )
     )
 
-
     if jd_skills:
 
         skill_match = round(
             (
                 len(matching_skills)
-                / len(jd_skills)
+                /
+                len(jd_skills)
             ) * 100,
             1
         )
@@ -1468,52 +1352,6 @@ def analyze_job_description(
     else:
 
         skill_match = 0
-
-
-    feature_names = (
-        vectorizer
-        .get_feature_names_out()
-    )
-
-    jd_vector = matrix[
-        1
-    ].toarray()[0]
-
-
-    keyword_scores = list(
-        zip(
-            feature_names,
-            jd_vector
-        )
-    )
-
-
-    keyword_scores.sort(
-        key=lambda x: x[1],
-        reverse=True
-    )
-
-
-    important_keywords = []
-
-    for word, score in keyword_scores:
-
-        if score <= 0:
-            continue
-
-        if len(word) <= 2:
-            continue
-
-        important_keywords.append(
-            word
-        )
-
-        if len(
-            important_keywords
-        ) >= 15:
-
-            break
-
 
     if jd_skills:
 
@@ -1530,30 +1368,21 @@ def analyze_job_description(
 
         final_match = text_match
 
-
     return {
-
         "text_match": text_match,
-
         "skill_match": skill_match,
-
         "final_match": final_match,
-
         "job_skills": sorted(
             jd_skills
         ),
-
         "matching_skills": matching_skills,
-
-        "missing_skills": missing_skills,
-
-        "important_keywords": important_keywords
+        "missing_skills": missing_skills
     }
 
 
-# =========================================================
+# ============================================================
 # IMPROVEMENT SUGGESTIONS
-# =========================================================
+# ============================================================
 
 def generate_ai_suggestions(
     resume_text,
@@ -1564,16 +1393,10 @@ def generate_ai_suggestions(
 
     suggestions = []
 
-    missing_role_skills = analysis[
+    # Missing role skills
+    for skill in analysis[
         "missing_skills"
-    ]
-
-    sections = analysis[
-        "sections"
-    ]
-
-
-    for skill in missing_role_skills[:5]:
+    ][:5]:
 
         suggestions.append(
             f"Consider adding {skill.title()} "
@@ -1581,7 +1404,7 @@ def generate_ai_suggestions(
             f"have experience with it."
         )
 
-
+    # Job description matching
     if jd_analysis:
 
         missing_jd_skills = jd_analysis[
@@ -1591,7 +1414,6 @@ def generate_ai_suggestions(
         matching_jd_skills = jd_analysis[
             "matching_skills"
         ]
-
 
         if missing_jd_skills:
 
@@ -1611,7 +1433,6 @@ def generate_ai_suggestions(
                     f"Projects section."
                 )
 
-
         if matching_jd_skills:
 
             suggestions.append(
@@ -1621,8 +1442,10 @@ def generate_ai_suggestions(
                 "projects, internships or achievements."
             )
 
-
-    if not sections["Projects"]:
+    # Projects
+    if not analysis[
+        "sections"
+    ]["Projects"]:
 
         suggestions.append(
             "Add a Projects section containing "
@@ -1638,8 +1461,10 @@ def generate_ai_suggestions(
             "used and measurable results."
         )
 
-
-    if not sections["Experience"]:
+    # Experience
+    if not analysis[
+        "sections"
+    ]["Experience"]:
 
         suggestions.append(
             "If you have internships, freelance work "
@@ -1655,8 +1480,10 @@ def generate_ai_suggestions(
             "results where possible."
         )
 
-
-    if not sections["Professional Summary"]:
+    # Summary
+    if not analysis[
+        "sections"
+    ]["Professional Summary"]:
 
         suggestions.append(
             f"Add a 2–3 line professional summary "
@@ -1671,8 +1498,10 @@ def generate_ai_suggestions(
             f"strongest relevant skills."
         )
 
-
-    if len(analysis["skills"]) < 5:
+    # Skills
+    if len(
+        analysis["skills"]
+    ) < 5:
 
         suggestions.append(
             "Your resume has relatively few detected "
@@ -1688,31 +1517,7 @@ def generate_ai_suggestions(
             "Tools, Databases, AI/ML or Security."
         )
 
-
-    if jd_analysis:
-
-        keywords = jd_analysis[
-            "important_keywords"
-        ]
-
-        if keywords:
-
-            top_keywords = keywords[:7]
-
-            keyword_string = ", ".join(
-                keyword.title()
-                for keyword in top_keywords
-            )
-
-            suggestions.append(
-                "Important terms detected in the job "
-                f"description include: {keyword_string}. "
-                "Use matching terminology naturally "
-                "where it truthfully describes your "
-                "experience."
-            )
-
-
+    # Action verbs
     suggestions.append(
         "Use strong action verbs such as "
         "developed, implemented, analyzed, "
@@ -1720,14 +1525,14 @@ def generate_ai_suggestions(
         "when they accurately describe your work."
     )
 
-
+    # Conciseness
     suggestions.append(
         f"Keep the resume concise and prioritize "
         f"information directly relevant to "
         f"{selected_role}."
     )
 
-
+    # Remove duplicates
     unique_suggestions = []
 
     for suggestion in suggestions:
@@ -1741,9 +1546,9 @@ def generate_ai_suggestions(
     return unique_suggestions
 
 
-# =========================================================
-# REPORT GENERATOR
-# =========================================================
+# ============================================================
+# CREATE TEXT REPORT
+# ============================================================
 
 def create_report(
     filename,
@@ -1790,9 +1595,7 @@ def create_report(
 
     report.append("")
 
-
-    # DETECTED SKILLS
-
+    # Detected skills
     report.append(
         "DETECTED SKILLS"
     )
@@ -1801,7 +1604,9 @@ def create_report(
         "-" * 30
     )
 
-    for skill in analysis["skills"]:
+    for skill in analysis[
+        "skills"
+    ]:
 
         report.append(
             f"- {skill.title()}"
@@ -1809,9 +1614,7 @@ def create_report(
 
     report.append("")
 
-
-    # ROLE MATCHING
-
+    # Role matching skills
     report.append(
         "ROLE MATCHING SKILLS"
     )
@@ -1830,9 +1633,7 @@ def create_report(
 
     report.append("")
 
-
-    # MISSING ROLE SKILLS
-
+    # Missing role skills
     report.append(
         "MISSING ROLE SKILLS"
     )
@@ -1851,9 +1652,7 @@ def create_report(
 
     report.append("")
 
-
-    # STRENGTHS
-
+    # Strengths
     report.append(
         "STRENGTHS"
     )
@@ -1872,9 +1671,7 @@ def create_report(
 
     report.append("")
 
-
-    # AREAS TO IMPROVE
-
+    # Areas to improve
     report.append(
         "AREAS TO IMPROVE"
     )
@@ -1891,33 +1688,26 @@ def create_report(
             f"- {item}"
         )
 
-
     if ai_suggestions:
 
         for suggestion in ai_suggestions:
 
-            clean_suggestion = (
-                suggestion.replace(
-                    "**",
-                    ""
-                )
+            clean_suggestion = suggestion.replace(
+                "**",
+                ""
             )
 
-            if (
-                clean_suggestion
-                not in analysis["weaknesses"]
-            ):
+            if clean_suggestion not in analysis[
+                "weaknesses"
+            ]:
 
                 report.append(
                     f"- {clean_suggestion}"
                 )
 
-
     report.append("")
 
-
-    # RECOMMENDATIONS
-
+    # Recommendations
     report.append(
         "RECOMMENDATIONS"
     )
@@ -1934,9 +1724,7 @@ def create_report(
             f"- {item}"
         )
 
-
-    # JOB DESCRIPTION
-
+    # Job description section
     if jd_analysis:
 
         report.append("")
@@ -1992,27 +1780,14 @@ def create_report(
                 f"- {skill.title()}"
             )
 
-        report.append("")
-
-        report.append(
-            "Important JD Keywords:"
-        )
-
-        for keyword in jd_analysis[
-            "important_keywords"
-        ]:
-
-            report.append(
-                f"- {keyword.title()}"
-            )
+    return "\n".join(
+        report
+    )
 
 
-    return "\n".join(report)
-
-
-# =========================================================
+# ============================================================
 # SIDEBAR
-# =========================================================
+# ============================================================
 
 with st.sidebar:
 
@@ -2024,12 +1799,12 @@ with st.sidebar:
         "Personalize your analysis"
     )
 
-
     selected_role = st.selectbox(
         "TARGET JOB ROLE",
-        list(ROLE_SKILLS.keys())
+        list(
+            ROLE_SKILLS.keys()
+        )
     )
-
 
     st.markdown(
         "### 🎯 Analysis Profile"
@@ -2040,20 +1815,23 @@ with st.sidebar:
         f"for **{selected_role}**."
     )
 
-
     st.markdown(
         "### 📁 Supported Files"
     )
 
-    st.write("📄 PDF")
+    st.write(
+        "📄 PDF"
+    )
 
-    st.write("📝 DOCX")
+    st.write(
+        "📝 DOCX"
+    )
 
-    st.write("🖼️ JPG / JPEG / PNG")
-
+    st.write(
+        "🖼️ JPG / JPEG / PNG"
+    )
 
     st.divider()
-
 
     st.caption(
         "💡 For best results, use a text-based "
@@ -2061,12 +1839,14 @@ with st.sidebar:
     )
 
 
-# =========================================================
-# HEADER
-# =========================================================
+# ============================================================
+# MAIN HEADER
+# ============================================================
 
 st.markdown(
-    '<div class="app-title">📄 AI Resume Analyzer</div>',
+    '<div class="app-title">'
+    '📄 AI Resume Analyzer'
+    '</div>',
     unsafe_allow_html=True
 )
 
@@ -2079,73 +1859,67 @@ st.markdown(
 )
 
 
-# =========================================================
-# HERO + UPLOAD
-# =========================================================
+# ============================================================
+# UPLOAD SECTION
+# ============================================================
 
-hero_col, upload_col = st.columns(
-    [1.35, 0.85],
-    gap="large"
-)
+with st.container(
+    border=True
+):
 
+    st.markdown(
+        "### 📤 Upload Your Resume"
+    )
 
-with hero_col:
+    st.caption(
+        "PDF, DOCX, JPG, JPEG or PNG"
+    )
 
-    with st.container(
-        border=True
-    ):
-
-        st.markdown(
-            "### ✨ Analyze. Match. Improve."
+    uploaded_file = st.file_uploader(
+        "Choose your resume",
+        type=[
+            "pdf",
+            "docx",
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        help=(
+            "Supported formats: PDF, DOCX, "
+            "JPG, JPEG and PNG"
         )
-
-        st.markdown(
-            """
-            Turn your resume into a stronger application
-            with instant ATS insights, role-based skill
-            analysis, job-description matching and
-            practical improvement suggestions.
-            """
-        )
-
-        st.caption(
-            "AI-powered resume intelligence"
-        )
+    )
 
 
-with upload_col:
+# ============================================================
+# HERO INFORMATION
+# ============================================================
 
-    with st.container(
-        border=True
-    ):
+with st.container(
+    border=True
+):
 
-        st.markdown(
-            "### 📤 Upload Your Resume"
-        )
+    st.markdown(
+        "### ✨ Analyze. Match. Improve."
+    )
 
-        st.caption(
-            "PDF, DOCX, JPG, JPEG or PNG"
-        )
+    st.markdown(
+        """
+        Turn your resume into a stronger application
+        with instant ATS insights, role-based skill
+        analysis, job-description matching and
+        practical improvement suggestions.
+        """
+    )
 
-        uploaded_file = st.file_uploader(
-            "Choose your resume",
-            type=[
-                "pdf",
-                "docx",
-                "jpg",
-                "jpeg",
-                "png"
-            ],
-            help=(
-                "Supported formats: PDF, DOCX, "
-                "JPG, JPEG and PNG"
-            )
-        )
+    st.caption(
+        "AI-powered resume intelligence"
+    )
 
 
-# =========================================================
-# HOME SCREEN
-# =========================================================
+# ============================================================
+# LANDING PAGE
+# ============================================================
 
 if not uploaded_file:
 
@@ -2164,12 +1938,10 @@ if not uploaded_file:
         unsafe_allow_html=True
     )
 
-
     step1, step2, step3 = st.columns(
         3,
         gap="medium"
     )
-
 
     with step1:
 
@@ -2189,7 +1961,6 @@ if not uploaded_file:
                 "Upload your PDF, DOCX, JPG, "
                 "JPEG or PNG resume."
             )
-
 
     with step2:
 
@@ -2211,7 +1982,6 @@ if not uploaded_file:
                 "and analyze your target role."
             )
 
-
     with step3:
 
         with st.container(
@@ -2231,7 +2001,6 @@ if not uploaded_file:
                 "job matching and downloadable report."
             )
 
-
     st.info(
         "💡 Select a target role from the sidebar, "
         "then upload your resume to begin."
@@ -2240,9 +2009,9 @@ if not uploaded_file:
     st.stop()
 
 
-# =========================================================
-# MAIN APPLICATION
-# =========================================================
+# ============================================================
+# PROCESS RESUME
+# ============================================================
 
 try:
 
@@ -2250,13 +2019,11 @@ try:
         f"📁 {uploaded_file.name} uploaded successfully."
     )
 
-
     filename = uploaded_file.name.lower()
 
-
-    # =====================================================
-    # TEXT EXTRACTION
-    # =====================================================
+    # --------------------------------------------------------
+    # PDF
+    # --------------------------------------------------------
 
     if filename.endswith(".pdf"):
 
@@ -2264,11 +2031,19 @@ try:
             uploaded_file
         )
 
+    # --------------------------------------------------------
+    # DOCX
+    # --------------------------------------------------------
+
     elif filename.endswith(".docx"):
 
         raw_text = extract_docx(
             uploaded_file
         )
+
+    # --------------------------------------------------------
+    # IMAGE
+    # --------------------------------------------------------
 
     elif filename.endswith(
         (
@@ -2286,15 +2061,13 @@ try:
 
         raw_text = ""
 
-
-    # =====================================================
+    # --------------------------------------------------------
     # CLEAN TEXT
-    # =====================================================
+    # --------------------------------------------------------
 
     text = clean_text(
         raw_text
     )
-
 
     if len(text) < 20:
 
@@ -2305,34 +2078,27 @@ try:
 
         st.stop()
 
-
     st.success(
         "✅ Resume text extracted successfully!"
     )
 
-
-    # =====================================================
-    # ANALYSIS
-    # =====================================================
+    # --------------------------------------------------------
+    # ANALYZE
+    # --------------------------------------------------------
 
     analysis = analyze_resume(
         text,
         selected_role
     )
 
-
     ats_score = calculate_ats_score(
         text,
         selected_role
     )
 
-
-    jd_analysis = None
-
-
-    # =====================================================
+    # ========================================================
     # SCORE DASHBOARD
-    # =====================================================
+    # ========================================================
 
     st.markdown(
         '<div class="section-title">'
@@ -2341,12 +2107,10 @@ try:
         unsafe_allow_html=True
     )
 
-
     c1, c2, c3, c4 = st.columns(
         4,
         gap="small"
     )
-
 
     with c1:
 
@@ -2355,7 +2119,6 @@ try:
             f"{ats_score}/100"
         )
 
-
     with c2:
 
         st.metric(
@@ -2363,14 +2126,14 @@ try:
             f"{analysis['role_percentage']}%"
         )
 
-
     with c3:
 
         st.metric(
             "Skills Detected",
-            len(analysis["skills"])
+            len(
+                analysis["skills"]
+            )
         )
-
 
     with c4:
 
@@ -2379,11 +2142,9 @@ try:
             analysis["word_count"]
         )
 
-
     st.progress(
         ats_score / 100
     )
-
 
     if ats_score >= 80:
 
@@ -2405,15 +2166,9 @@ try:
         )
 
 
-    # =====================================================
-    # ONLY 3 TABS
-    #
-    # 1. Resume Analysis
-    # 2. Job Description Matching
-    # 3. Report
-    #
-    # Areas to Improve is INSIDE Resume Analysis.
-    # =====================================================
+    # ========================================================
+    # TABS
+    # ========================================================
 
     overview_tab, job_tab, report_tab = st.tabs(
         [
@@ -2424,16 +2179,15 @@ try:
     )
 
 
-    # =====================================================
-    # TAB 1 — RESUME ANALYSIS
-    # =====================================================
+    # ========================================================
+    # RESUME ANALYSIS TAB
+    # ========================================================
 
     with overview_tab:
 
-
-        # -------------------------------------------------
-        # RESUME SECTIONS
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # SECTION ANALYSIS
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -2450,19 +2204,16 @@ try:
             unsafe_allow_html=True
         )
 
-
         section_items = list(
             analysis[
                 "sections"
             ].items()
         )
 
-
         section_cols = st.columns(
             4,
             gap="small"
         )
-
 
         for index, (
             section,
@@ -2492,9 +2243,9 @@ try:
                         )
 
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # SKILLS
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -2510,16 +2261,14 @@ try:
             unsafe_allow_html=True
         )
 
-
         skill_col1, skill_col2 = st.columns(
             2,
-            gap="large"
+            gap="medium"
         )
 
-
-        # =================================================
+        # ----------------------------------------------------
         # DETECTED SKILLS
-        # =================================================
+        # ----------------------------------------------------
 
         with skill_col1:
 
@@ -2527,14 +2276,14 @@ try:
                 "🔹 Detected Skills"
             )
 
-
-            if analysis["skills"]:
+            if analysis[
+                "skills"
+            ]:
 
                 detected_skill_cols = st.columns(
                     2,
                     gap="small"
                 )
-
 
                 for index, skill in enumerate(
                     analysis["skills"]
@@ -2544,17 +2293,19 @@ try:
                         index % 2
                     ]:
 
-                        with st.container(
-                            border=True
-                        ):
-
-                            st.markdown(
-                                f"### 💠 {skill.title()}"
-                            )
-
-                            st.caption(
-                                "Detected in resume"
-                            )
+                        st.markdown(
+                            f"""
+                            <div class="compact-skill-card">
+                                <div class="compact-skill-title">
+                                    💠 {skill.title()}
+                                </div>
+                                <div class="compact-skill-caption">
+                                    Detected in resume
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
             else:
 
@@ -2563,9 +2314,9 @@ try:
                 )
 
 
-        # =================================================
+        # ----------------------------------------------------
         # TARGET ROLE SKILLS
-        # =================================================
+        # ----------------------------------------------------
 
         with skill_col2:
 
@@ -2573,15 +2324,15 @@ try:
                 f"🎯 {selected_role} Skills"
             )
 
-
             role_skill_cols = st.columns(
                 2,
                 gap="small"
             )
 
-
             for index, skill in enumerate(
-                ROLE_SKILLS[selected_role]
+                ROLE_SKILLS[
+                    selected_role
+                ]
             ):
 
                 with role_skill_cols[
@@ -2592,36 +2343,40 @@ try:
                         "matching_skills"
                     ]:
 
-                        with st.container(
-                            border=True
-                        ):
-
-                            st.markdown(
-                                f"### 🟢 {skill.title()}"
-                            )
-
-                            st.caption(
-                                "Skill matched"
-                            )
+                        st.markdown(
+                            f"""
+                            <div class="compact-skill-card compact-skill-match">
+                                <div class="compact-skill-title">
+                                    🟢 {skill.title()}
+                                </div>
+                                <div class="compact-skill-caption">
+                                    Skill matched
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
                     else:
 
-                        with st.container(
-                            border=True
-                        ):
+                        st.markdown(
+                            f"""
+                            <div class="compact-skill-card compact-skill-missing">
+                                <div class="compact-skill-title">
+                                    🔴 {skill.title()}
+                                </div>
+                                <div class="compact-skill-caption">
+                                    Skill not detected
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
-                            st.markdown(
-                                f"### 🔴 {skill.title()}"
-                            )
 
-                            st.caption(
-                                "Skill not detected"
-                            )
-
-
-        # -------------------------------------------------
-        # RESUME FEEDBACK
-        # -------------------------------------------------
+        # ----------------------------------------------------
+        # FEEDBACK
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -2630,16 +2385,14 @@ try:
             unsafe_allow_html=True
         )
 
-
         strengths_col, improve_col = st.columns(
             2,
             gap="large"
         )
 
-
-        # =================================================
+        # ----------------------------------------------------
         # STRENGTHS
-        # =================================================
+        # ----------------------------------------------------
 
         with strengths_col:
 
@@ -2651,8 +2404,9 @@ try:
                     "💪 Resume Strengths"
                 )
 
-
-                if analysis["strengths"]:
+                if analysis[
+                    "strengths"
+                ]:
 
                     for strength in analysis[
                         "strengths"
@@ -2669,12 +2423,9 @@ try:
                     )
 
 
-        # =================================================
+        # ----------------------------------------------------
         # AREAS TO IMPROVE
-        #
-        # THIS IS THE ONLY LOCATION.
-        # THERE IS NO SEPARATE TAB.
-        # =================================================
+        # ----------------------------------------------------
 
         with improve_col:
 
@@ -2686,14 +2437,11 @@ try:
                     "⚡ Areas to Improve"
                 )
 
-
                 ai_suggestions = generate_ai_suggestions(
                     text,
                     selected_role,
-                    analysis,
-                    jd_analysis
+                    analysis
                 )
-
 
                 areas_to_improve = list(
                     dict.fromkeys(
@@ -2705,7 +2453,6 @@ try:
                     )
                 )
 
-
                 if areas_to_improve:
 
                     for index, improvement in enumerate(
@@ -2714,8 +2461,7 @@ try:
                     ):
 
                         clean_improvement = (
-                            improvement
-                            .replace(
+                            improvement.replace(
                                 "**",
                                 ""
                             )
@@ -2733,9 +2479,9 @@ try:
                     )
 
 
-        # -------------------------------------------------
+        # ----------------------------------------------------
         # RECOMMENDATIONS
-        # -------------------------------------------------
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -2743,7 +2489,6 @@ try:
             '</div>',
             unsafe_allow_html=True
         )
-
 
         recommendations = list(
             dict.fromkeys(
@@ -2753,14 +2498,12 @@ try:
             )
         )
 
-
         if recommendations:
 
             rec_cols = st.columns(
                 2,
                 gap="small"
             )
-
 
             for index, recommendation in enumerate(
                 recommendations
@@ -2785,9 +2528,9 @@ try:
             )
 
 
-    # =====================================================
-    # TAB 2 — JOB DESCRIPTION MATCHING
-    # =====================================================
+    # ========================================================
+    # JOB DESCRIPTION TAB
+    # ========================================================
 
     with job_tab:
 
@@ -2806,19 +2549,17 @@ try:
             unsafe_allow_html=True
         )
 
-
         job_description = st.text_area(
             "📋 Job Description",
             height=180,
             placeholder=(
                 "Paste the complete job description here...\n\n"
                 "Example:\n"
-                "We are looking for a Data Analyst "
-                "with experience in Python, SQL, "
-                "Pandas, Excel and Power BI."
+                "We are looking for a Cybersecurity Analyst "
+                "with experience in Python, Linux, "
+                "network security, SIEM and Wireshark."
             )
         )
-
 
         if job_description.strip():
 
@@ -2838,10 +2579,9 @@ try:
                     job_description
                 )
 
-
-                # =========================================
-                # MATCH SCORE
-                # =========================================
+                # ------------------------------------------------
+                # JOB MATCH SCORE
+                # ------------------------------------------------
 
                 st.markdown(
                     '<div class="section-title">'
@@ -2850,12 +2590,10 @@ try:
                     unsafe_allow_html=True
                 )
 
-
                 j1, j2, j3 = st.columns(
                     3,
                     gap="small"
                 )
-
 
                 with j1:
 
@@ -2864,14 +2602,12 @@ try:
                         f"{jd_analysis['final_match']}%"
                     )
 
-
                 with j2:
 
                     st.metric(
                         "Text Match",
                         f"{jd_analysis['text_match']}%"
                     )
-
 
                 with j3:
 
@@ -2880,13 +2616,11 @@ try:
                         f"{jd_analysis['skill_match']}%"
                     )
 
-
                 st.progress(
                     jd_analysis[
                         "final_match"
                     ] / 100
                 )
-
 
                 if jd_analysis[
                     "final_match"
@@ -2912,15 +2646,14 @@ try:
                     )
 
 
-                # =========================================
-                # MATCHING + MISSING SKILLS
-                # =========================================
+                # ------------------------------------------------
+                # MATCHING / MISSING
+                # ------------------------------------------------
 
                 match_col, missing_col = st.columns(
                     2,
                     gap="large"
                 )
-
 
                 with match_col:
 
@@ -2931,7 +2664,6 @@ try:
                         st.subheader(
                             "✅ Matching Skills"
                         )
-
 
                         if jd_analysis[
                             "matching_skills"
@@ -2962,7 +2694,6 @@ try:
                             "❌ Missing Skills"
                         )
 
-
                         if jd_analysis[
                             "missing_skills"
                         ]:
@@ -2982,14 +2713,13 @@ try:
                             )
 
 
-                # =========================================
+                # ------------------------------------------------
                 # JOB SKILLS
-                # =========================================
+                # ------------------------------------------------
 
                 st.subheader(
                     "🎯 Skills Detected in Job Description"
                 )
-
 
                 if jd_analysis[
                     "job_skills"
@@ -3000,9 +2730,10 @@ try:
                         gap="small"
                     )
 
-
                     for index, skill in enumerate(
-                        jd_analysis["job_skills"]
+                        jd_analysis[
+                            "job_skills"
+                        ]
                     ):
 
                         with job_skill_cols[
@@ -3025,59 +2756,26 @@ try:
                     )
 
 
-                # =========================================
-                # KEYWORDS
-                # =========================================
-
-                st.subheader(
-                    "🔑 Important Job Keywords"
-                )
-
-
-                keywords = jd_analysis[
-                    "important_keywords"
-                ]
-
-
-                if keywords:
-
-                    keyword_cols = st.columns(
-                        3,
-                        gap="small"
-                    )
+                # ------------------------------------------------
+                # IMPORTANT JOB KEYWORDS BLOCK REMOVED
+                # ------------------------------------------------
+                #
+                # There is intentionally NO:
+                #
+                # 🔑 Important Job Keywords
+                #
+                # block here.
+                #
+                # ------------------------------------------------
 
 
-                    for index, keyword in enumerate(
-                        keywords
-                    ):
-
-                        with keyword_cols[
-                            index % 3
-                        ]:
-
-                            with st.container(
-                                border=True
-                            ):
-
-                                st.markdown(
-                                    f"**{keyword.title()}**"
-                                )
-
-                else:
-
-                    st.info(
-                        "No important keywords detected."
-                    )
-
-
-                # =========================================
-                # JOB MATCH IMPROVEMENT
-                # =========================================
+                # ------------------------------------------------
+                # HOW TO IMPROVE JOB MATCH
+                # ------------------------------------------------
 
                 st.subheader(
                     "💡 How to Improve Your Job Match"
                 )
-
 
                 if jd_analysis[
                     "missing_skills"
@@ -3089,7 +2787,6 @@ try:
                         "in your resume:"
                     )
 
-
                     for skill in jd_analysis[
                         "missing_skills"
                     ]:
@@ -3097,7 +2794,6 @@ try:
                         st.write(
                             f"• **{skill.title()}**"
                         )
-
 
                     st.info(
                         "Only add skills that you "
@@ -3112,13 +2808,11 @@ try:
                         "the job description."
                     )
 
-
                 st.caption(
                     "ℹ️ Match percentage is based on "
                     "text and skill similarity. It does "
                     "not predict hiring probability."
                 )
-
 
         else:
 
@@ -3128,9 +2822,9 @@ try:
             )
 
 
-    # =====================================================
-    # TAB 3 — REPORT
-    # =====================================================
+    # ========================================================
+    # REPORT TAB
+    # ========================================================
 
     with report_tab:
 
@@ -3148,26 +2842,20 @@ try:
             unsafe_allow_html=True
         )
 
-
-        # Recalculate suggestions for report
-
         ai_suggestions = generate_ai_suggestions(
             text,
             selected_role,
-            analysis,
-            jd_analysis
+            analysis
         )
-
 
         report = create_report(
             uploaded_file.name,
             selected_role,
             ats_score,
             analysis,
-            jd_analysis,
+            None,
             ai_suggestions
         )
-
 
         st.download_button(
             label="📥 Download Resume Analysis Report",
@@ -3177,10 +2865,9 @@ try:
             use_container_width=True
         )
 
-
-        # ================================================
+        # ----------------------------------------------------
         # REPORT PREVIEW
-        # ================================================
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -3188,7 +2875,6 @@ try:
             '</div>',
             unsafe_allow_html=True
         )
-
 
         with st.container(
             border=True
@@ -3198,10 +2884,9 @@ try:
                 report
             )
 
-
-        # ================================================
+        # ----------------------------------------------------
         # EXTRACTED TEXT
-        # ================================================
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -3209,7 +2894,6 @@ try:
             '</div>',
             unsafe_allow_html=True
         )
-
 
         with st.expander(
             "View Extracted Resume Text"
@@ -3221,6 +2905,10 @@ try:
                 height=350
             )
 
+
+# ============================================================
+# ERROR HANDLING
+# ============================================================
 
 except Exception as error:
 
